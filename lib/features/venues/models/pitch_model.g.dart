@@ -10,7 +10,7 @@ _PitchModel _$PitchModelFromJson(Map<String, dynamic> json) => _PitchModel(
   id: json['id'] as String,
   venueId: json['venueId'] as String,
   name: json['name'] as String,
-  sport: json['sport'] as String,
+  sport: $enumDecode(_$SportEnumMap, json['sport']),
   maxPlayers: (json['maxPlayers'] as num).toInt(),
   pricePerHour: (json['pricePerHour'] as num).toInt(),
   currency: json['currency'] as String? ?? 'RON',
@@ -26,7 +26,7 @@ Map<String, dynamic> _$PitchModelToJson(_PitchModel instance) =>
       'id': instance.id,
       'venueId': instance.venueId,
       'name': instance.name,
-      'sport': instance.sport,
+      'sport': _$SportEnumMap[instance.sport]!,
       'maxPlayers': instance.maxPlayers,
       'pricePerHour': instance.pricePerHour,
       'currency': instance.currency,
@@ -36,3 +36,15 @@ Map<String, dynamic> _$PitchModelToJson(_PitchModel instance) =>
       'active': instance.active,
       'createdAt': const TimestampConverter().toJson(instance.createdAt),
     };
+
+const _$SportEnumMap = {
+  Sport.football: 'football',
+  Sport.padel: 'padel',
+  Sport.tennis: 'tennis',
+  Sport.squash: 'squash',
+  Sport.tableTennis: 'tableTennis',
+  Sport.basketball: 'basketball',
+  Sport.volleyball: 'volleyball',
+  Sport.badminton: 'badminton',
+  Sport.handball: 'handball',
+};

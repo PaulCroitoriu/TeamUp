@@ -1,0 +1,64 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/teamup-db/documents {
+
+    // ── Users ──
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth.uid == userId;
+    }
+
+    // ── Businesses ──
+    match /businesses/{businessId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && get(/databases/teamup-db/documents/users/$(request.auth.uid)).data.businessId == businessId;
+    }
+
+    // ── Venues ──
+    match /venues/{venueId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.businessId != null;
+      allow update: if request.auth != null
+        && get(/databases/teamup-db/documents/users/$(request.auth.uid)).data.businessId == resource.data.businessId;
+
+      // ── Pitches (subcollection) ──
+      match /pitches/{pitchId} {
+        allow read: if true;
+        allow create, update: if request.auth != null
+          && get(/databases/teamup-db/documents/users/$(request.auth.uid)).data.businessId == get(/databases/teamup-db/documents/venues/$(venueId)).data.businessId;
+      }
+    }
+
+    // ── Games ──
+    match /games/{gameId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+    }
+
+    // ── Bookings ──
+    match /bookings/{bookingId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+    }
+
+    // ── Conversations ──
+    match /conversations/{conversationId} {
+      allow read: if request.auth != null
+        && request.auth.uid in resource.data.participantIds;
+      allow create: if request.auth != null;
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/teamup-db/documents/conversations/$(conversationId)).data.participantIds;
+        allow create: if request.auth != null
+          && request.auth.uid in get(/databases/teamup-db/documents/conversations/$(conversationId)).data.participantIds;
+      }
+    }
+  }
+}

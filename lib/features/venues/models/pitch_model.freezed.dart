@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PitchModel {
 
- String get id; String get venueId; String get name; String get sport; int get maxPlayers;/// Price per hour in the smallest currency unit (e.g. cents / bani).
+ String get id; String get venueId; String get name; Sport get sport; int get maxPlayers;/// Price per hour in the smallest currency unit (e.g. cents / bani).
  int get pricePerHour;/// Currency code, e.g. "RON", "EUR".
  String get currency;/// Surface type: grass, artificial, indoor, clay, etc.
  String? get surface;/// Whether the pitch is covered / indoor.
@@ -52,7 +52,7 @@ abstract mixin class $PitchModelCopyWith<$Res>  {
   factory $PitchModelCopyWith(PitchModel value, $Res Function(PitchModel) _then) = _$PitchModelCopyWithImpl;
 @useResult
 $Res call({
- String id, String venueId, String name, String sport, int maxPlayers, int pricePerHour, String currency, String? surface, bool indoor, String? imageUrl, bool active,@TimestampConverter() DateTime createdAt
+ String id, String venueId, String name, Sport sport, int maxPlayers, int pricePerHour, String currency, String? surface, bool indoor, String? imageUrl, bool active,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -75,7 +75,7 @@ id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,venueId: null == venueId ? _self.venueId : venueId // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,sport: null == sport ? _self.sport : sport // ignore: cast_nullable_to_non_nullable
-as String,maxPlayers: null == maxPlayers ? _self.maxPlayers : maxPlayers // ignore: cast_nullable_to_non_nullable
+as Sport,maxPlayers: null == maxPlayers ? _self.maxPlayers : maxPlayers // ignore: cast_nullable_to_non_nullable
 as int,pricePerHour: null == pricePerHour ? _self.pricePerHour : pricePerHour // ignore: cast_nullable_to_non_nullable
 as int,currency: null == currency ? _self.currency : currency // ignore: cast_nullable_to_non_nullable
 as String,surface: freezed == surface ? _self.surface : surface // ignore: cast_nullable_to_non_nullable
@@ -168,7 +168,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String venueId,  String name,  String sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  String? imageUrl,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String venueId,  String name,  Sport sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  String? imageUrl,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PitchModel() when $default != null:
 return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_that.pricePerHour,_that.currency,_that.surface,_that.indoor,_that.imageUrl,_that.active,_that.createdAt);case _:
@@ -189,7 +189,7 @@ return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String venueId,  String name,  String sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  String? imageUrl,  bool active, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String venueId,  String name,  Sport sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  String? imageUrl,  bool active, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
 switch (_that) {
 case _PitchModel():
 return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_that.pricePerHour,_that.currency,_that.surface,_that.indoor,_that.imageUrl,_that.active,_that.createdAt);case _:
@@ -209,7 +209,7 @@ return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String venueId,  String name,  String sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  String? imageUrl,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String venueId,  String name,  Sport sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  String? imageUrl,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
 switch (_that) {
 case _PitchModel() when $default != null:
 return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_that.pricePerHour,_that.currency,_that.surface,_that.indoor,_that.imageUrl,_that.active,_that.createdAt);case _:
@@ -230,7 +230,7 @@ class _PitchModel implements PitchModel {
 @override final  String id;
 @override final  String venueId;
 @override final  String name;
-@override final  String sport;
+@override final  Sport sport;
 @override final  int maxPlayers;
 /// Price per hour in the smallest currency unit (e.g. cents / bani).
 @override final  int pricePerHour;
@@ -277,7 +277,7 @@ abstract mixin class _$PitchModelCopyWith<$Res> implements $PitchModelCopyWith<$
   factory _$PitchModelCopyWith(_PitchModel value, $Res Function(_PitchModel) _then) = __$PitchModelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String venueId, String name, String sport, int maxPlayers, int pricePerHour, String currency, String? surface, bool indoor, String? imageUrl, bool active,@TimestampConverter() DateTime createdAt
+ String id, String venueId, String name, Sport sport, int maxPlayers, int pricePerHour, String currency, String? surface, bool indoor, String? imageUrl, bool active,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -300,7 +300,7 @@ id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,venueId: null == venueId ? _self.venueId : venueId // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,sport: null == sport ? _self.sport : sport // ignore: cast_nullable_to_non_nullable
-as String,maxPlayers: null == maxPlayers ? _self.maxPlayers : maxPlayers // ignore: cast_nullable_to_non_nullable
+as Sport,maxPlayers: null == maxPlayers ? _self.maxPlayers : maxPlayers // ignore: cast_nullable_to_non_nullable
 as int,pricePerHour: null == pricePerHour ? _self.pricePerHour : pricePerHour // ignore: cast_nullable_to_non_nullable
 as int,currency: null == currency ? _self.currency : currency // ignore: cast_nullable_to_non_nullable
 as String,surface: freezed == surface ? _self.surface : surface // ignore: cast_nullable_to_non_nullable

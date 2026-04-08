@@ -93,7 +93,7 @@ class _ProfileBody extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  user.role == UserRole.business ? 'Business' : 'Player',
+                  user.role.label,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: colors.secondary,
                     fontWeight: FontWeight.w700,

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:teamup/core/firebase/firestore.dart';
 import 'package:teamup/features/auth/models/business_model.dart';
 import 'package:teamup/features/auth/models/user_model.dart';
 
@@ -8,7 +9,7 @@ class AuthService {
     FirebaseAuth? auth,
     FirebaseFirestore? firestore,
   })  : _auth = auth ?? FirebaseAuth.instance,
-        _firestore = firestore ?? FirebaseFirestore.instance;
+        _firestore = firestore ?? db;
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;

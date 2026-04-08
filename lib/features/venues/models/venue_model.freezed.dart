@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$VenueModel {
 
- String get id; String get businessId; String get name; String get address; String get city;@GeoPointConverter() GeoPoint get location; String? get phone; String? get description; String? get imageUrl; List<String> get sports; List<String> get amenities; bool get active;@TimestampConverter() DateTime get createdAt;
+ String get id; String get businessId; String get name; String get address; String get city;@GeoPointConverter() GeoPoint get location; String? get phone; String? get description; String? get imageUrl; List<Sport> get sports; List<String> get amenities; bool get active;@TimestampConverter() DateTime get createdAt;
 /// Create a copy of VenueModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,7 +48,7 @@ abstract mixin class $VenueModelCopyWith<$Res>  {
   factory $VenueModelCopyWith(VenueModel value, $Res Function(VenueModel) _then) = _$VenueModelCopyWithImpl;
 @useResult
 $Res call({
- String id, String businessId, String name, String address, String city,@GeoPointConverter() GeoPoint location, String? phone, String? description, String? imageUrl, List<String> sports, List<String> amenities, bool active,@TimestampConverter() DateTime createdAt
+ String id, String businessId, String name, String address, String city,@GeoPointConverter() GeoPoint location, String? phone, String? description, String? imageUrl, List<Sport> sports, List<String> amenities, bool active,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -77,7 +77,7 @@ as GeoPoint,phone: freezed == phone ? _self.phone : phone // ignore: cast_nullab
 as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,imageUrl: freezed == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
 as String?,sports: null == sports ? _self.sports : sports // ignore: cast_nullable_to_non_nullable
-as List<String>,amenities: null == amenities ? _self.amenities : amenities // ignore: cast_nullable_to_non_nullable
+as List<Sport>,amenities: null == amenities ? _self.amenities : amenities // ignore: cast_nullable_to_non_nullable
 as List<String>,active: null == active ? _self.active : active // ignore: cast_nullable_to_non_nullable
 as bool,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,
@@ -165,7 +165,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String businessId,  String name,  String address,  String city, @GeoPointConverter()  GeoPoint location,  String? phone,  String? description,  String? imageUrl,  List<String> sports,  List<String> amenities,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String businessId,  String name,  String address,  String city, @GeoPointConverter()  GeoPoint location,  String? phone,  String? description,  String? imageUrl,  List<Sport> sports,  List<String> amenities,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _VenueModel() when $default != null:
 return $default(_that.id,_that.businessId,_that.name,_that.address,_that.city,_that.location,_that.phone,_that.description,_that.imageUrl,_that.sports,_that.amenities,_that.active,_that.createdAt);case _:
@@ -186,7 +186,7 @@ return $default(_that.id,_that.businessId,_that.name,_that.address,_that.city,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String businessId,  String name,  String address,  String city, @GeoPointConverter()  GeoPoint location,  String? phone,  String? description,  String? imageUrl,  List<String> sports,  List<String> amenities,  bool active, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String businessId,  String name,  String address,  String city, @GeoPointConverter()  GeoPoint location,  String? phone,  String? description,  String? imageUrl,  List<Sport> sports,  List<String> amenities,  bool active, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
 switch (_that) {
 case _VenueModel():
 return $default(_that.id,_that.businessId,_that.name,_that.address,_that.city,_that.location,_that.phone,_that.description,_that.imageUrl,_that.sports,_that.amenities,_that.active,_that.createdAt);case _:
@@ -206,7 +206,7 @@ return $default(_that.id,_that.businessId,_that.name,_that.address,_that.city,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String businessId,  String name,  String address,  String city, @GeoPointConverter()  GeoPoint location,  String? phone,  String? description,  String? imageUrl,  List<String> sports,  List<String> amenities,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String businessId,  String name,  String address,  String city, @GeoPointConverter()  GeoPoint location,  String? phone,  String? description,  String? imageUrl,  List<Sport> sports,  List<String> amenities,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
 switch (_that) {
 case _VenueModel() when $default != null:
 return $default(_that.id,_that.businessId,_that.name,_that.address,_that.city,_that.location,_that.phone,_that.description,_that.imageUrl,_that.sports,_that.amenities,_that.active,_that.createdAt);case _:
@@ -221,7 +221,7 @@ return $default(_that.id,_that.businessId,_that.name,_that.address,_that.city,_t
 @JsonSerializable()
 
 class _VenueModel implements VenueModel {
-  const _VenueModel({required this.id, required this.businessId, required this.name, required this.address, required this.city, @GeoPointConverter() required this.location, this.phone, this.description, this.imageUrl, final  List<String> sports = const [], final  List<String> amenities = const [], this.active = true, @TimestampConverter() required this.createdAt}): _sports = sports,_amenities = amenities;
+  const _VenueModel({required this.id, required this.businessId, required this.name, required this.address, required this.city, @GeoPointConverter() required this.location, this.phone, this.description, this.imageUrl, final  List<Sport> sports = const [], final  List<String> amenities = const [], this.active = true, @TimestampConverter() required this.createdAt}): _sports = sports,_amenities = amenities;
   factory _VenueModel.fromJson(Map<String, dynamic> json) => _$VenueModelFromJson(json);
 
 @override final  String id;
@@ -233,8 +233,8 @@ class _VenueModel implements VenueModel {
 @override final  String? phone;
 @override final  String? description;
 @override final  String? imageUrl;
- final  List<String> _sports;
-@override@JsonKey() List<String> get sports {
+ final  List<Sport> _sports;
+@override@JsonKey() List<Sport> get sports {
   if (_sports is EqualUnmodifiableListView) return _sports;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_sports);
@@ -283,7 +283,7 @@ abstract mixin class _$VenueModelCopyWith<$Res> implements $VenueModelCopyWith<$
   factory _$VenueModelCopyWith(_VenueModel value, $Res Function(_VenueModel) _then) = __$VenueModelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String businessId, String name, String address, String city,@GeoPointConverter() GeoPoint location, String? phone, String? description, String? imageUrl, List<String> sports, List<String> amenities, bool active,@TimestampConverter() DateTime createdAt
+ String id, String businessId, String name, String address, String city,@GeoPointConverter() GeoPoint location, String? phone, String? description, String? imageUrl, List<Sport> sports, List<String> amenities, bool active,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -312,7 +312,7 @@ as GeoPoint,phone: freezed == phone ? _self.phone : phone // ignore: cast_nullab
 as String?,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,imageUrl: freezed == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
 as String?,sports: null == sports ? _self._sports : sports // ignore: cast_nullable_to_non_nullable
-as List<String>,amenities: null == amenities ? _self._amenities : amenities // ignore: cast_nullable_to_non_nullable
+as List<Sport>,amenities: null == amenities ? _self._amenities : amenities // ignore: cast_nullable_to_non_nullable
 as List<String>,active: null == active ? _self.active : active // ignore: cast_nullable_to_non_nullable
 as bool,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,

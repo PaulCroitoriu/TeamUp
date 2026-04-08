@@ -5,7 +5,14 @@ import 'package:teamup/core/utils/timestamp_converter.dart';
 part 'user_model.freezed.dart';
 part 'user_model.g.dart';
 
-enum UserRole { player, business }
+enum UserRole {
+  player(1, 'Player'),
+  business(2, 'Business');
+
+  const UserRole(this.value, this.label);
+  final int value;
+  final String label;
+}
 
 @freezed
 abstract class UserModel with _$UserModel {

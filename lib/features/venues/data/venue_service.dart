@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:teamup/core/firebase/firestore.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
 
 class VenueService {
   VenueService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? db;
 
   final FirebaseFirestore _firestore;
 

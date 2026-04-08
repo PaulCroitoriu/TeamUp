@@ -41,6 +41,7 @@ class TeamUpApp extends StatelessWidget {
             home: BlocBuilder<AuthBloc, AuthState>(
               builder: (context, state) {
                 return state.maybeMap(
+                  initial: (_) => const _SplashScreen(),
                   authenticated: (s) => AppShell(user: s.user),
                   orElse: () => const LoginScreen(),
                 );
@@ -48,6 +49,24 @@ class TeamUpApp extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: Center(
+        child: Icon(
+          Icons.sports_soccer_rounded,
+          size: 64,
+          color: colors.primary,
+        ),
       ),
     );
   }

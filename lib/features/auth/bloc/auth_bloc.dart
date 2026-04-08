@@ -25,7 +25,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     _AppStarted event,
     Emitter<AuthState> emit,
   ) async {
-    final firebaseUser = _authService.currentUser;
+    // Wait for the first emission from authStateChanges — this resolves
+    // the persisted session on web instead of checking synchronously.
+    final firebaseUser = await _authService.authStateChanges.first;
     if (firebaseUser == null) {
       emit(const AuthState.unauthenticated());
       return;

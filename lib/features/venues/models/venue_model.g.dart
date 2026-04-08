@@ -17,7 +17,9 @@ _VenueModel _$VenueModelFromJson(Map<String, dynamic> json) => _VenueModel(
   description: json['description'] as String?,
   imageUrl: json['imageUrl'] as String?,
   sports:
-      (json['sports'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      (json['sports'] as List<dynamic>?)
+          ?.map((e) => $enumDecode(_$SportEnumMap, e))
+          .toList() ??
       const [],
   amenities:
       (json['amenities'] as List<dynamic>?)?.map((e) => e as String).toList() ??
@@ -37,8 +39,20 @@ Map<String, dynamic> _$VenueModelToJson(_VenueModel instance) =>
       'phone': instance.phone,
       'description': instance.description,
       'imageUrl': instance.imageUrl,
-      'sports': instance.sports,
+      'sports': instance.sports.map((e) => _$SportEnumMap[e]!).toList(),
       'amenities': instance.amenities,
       'active': instance.active,
       'createdAt': const TimestampConverter().toJson(instance.createdAt),
     };
+
+const _$SportEnumMap = {
+  Sport.football: 'football',
+  Sport.padel: 'padel',
+  Sport.tennis: 'tennis',
+  Sport.squash: 'squash',
+  Sport.tableTennis: 'tableTennis',
+  Sport.basketball: 'basketball',
+  Sport.volleyball: 'volleyball',
+  Sport.badminton: 'badminton',
+  Sport.handball: 'handball',
+};

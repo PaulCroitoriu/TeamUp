@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:teamup/core/enums/sport.dart';
 import 'package:teamup/core/utils/timestamp_converter.dart';
 
 part 'venue_model.freezed.dart';
@@ -17,7 +18,7 @@ abstract class VenueModel with _$VenueModel {
     String? phone,
     String? description,
     String? imageUrl,
-    @Default([]) List<String> sports,
+    @Default([]) List<Sport> sports,
     @Default([]) List<String> amenities,
     @Default(true) bool active,
     @TimestampConverter() required DateTime createdAt,
@@ -49,7 +50,7 @@ class GeoPointConverter implements JsonConverter<GeoPoint, dynamic> {
 
   @override
   Map<String, dynamic> toJson(GeoPoint geoPoint) => {
-        'latitude': geoPoint.latitude,
-        'longitude': geoPoint.longitude,
-      };
+    'latitude': geoPoint.latitude,
+    'longitude': geoPoint.longitude,
+  };
 }
