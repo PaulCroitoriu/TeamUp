@@ -26,7 +26,7 @@ abstract class PitchModel with _$PitchModel {
 
     /// Whether the pitch is covered / indoor.
     @Default(false) bool indoor,
-    String? imageUrl,
+    @Default([]) List<String> imageUrls,
     @Default(true) bool active,
     @TimestampConverter() required DateTime createdAt,
   }) = _PitchModel;

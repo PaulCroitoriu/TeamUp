@@ -4,33 +4,24 @@ import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
 
 class VenueService {
-  VenueService({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? db;
+  VenueService({FirebaseFirestore? firestore}) : _firestore = firestore ?? db;
 
   final FirebaseFirestore _firestore;
 
-  CollectionReference<Map<String, dynamic>> get _venuesRef =>
-      _firestore.collection('venues');
+  CollectionReference<Map<String, dynamic>> get _venuesRef => _firestore.collection('venues');
 
-  CollectionReference<Map<String, dynamic>> _pitchesRef(String venueId) =>
-      _venuesRef.doc(venueId).collection('pitches');
+  CollectionReference<Map<String, dynamic>> _pitchesRef(String venueId) => _venuesRef.doc(venueId).collection('pitches');
 
   // ─── Venues ────────────────────────────────────────────────
 
   /// Stream all active venues (for explore).
   Stream<List<VenueModel>> streamVenues() {
-    return _venuesRef
-        .where('active', isEqualTo: true)
-        .snapshots()
-        .map((snap) => snap.docs.map(VenueModel.fromFirestore).toList());
+    return _venuesRef.where('active', isEqualTo: true).snapshots().map((snap) => snap.docs.map(VenueModel.fromFirestore).toList());
   }
 
   /// Stream venues belonging to a specific business.
   Stream<List<VenueModel>> streamBusinessVenues(String businessId) {
-    return _venuesRef
-        .where('businessId', isEqualTo: businessId)
-        .snapshots()
-        .map((snap) => snap.docs.map(VenueModel.fromFirestore).toList());
+    return _venuesRef.where('businessId', isEqualTo: businessId).snapshots().map((snap) => snap.docs.map(VenueModel.fromFirestore).toList());
   }
 
   /// Get a single venue by ID.
@@ -57,10 +48,17 @@ class VenueService {
 
   /// Stream all active pitches for a venue.
   Stream<List<PitchModel>> streamPitches(String venueId) {
-    return _pitchesRef(venueId)
-        .where('active', isEqualTo: true)
-        .snapshots()
-        .map((snap) => snap.docs.map(PitchModel.fromFirestore).toList());
+    return _pitchesRef(venueId).where('active', isEqualTo: true).snapshots().map((snap) => snap.docs.map(PitchModel.fromFirestore).toList());
+  }
+
+  /// Stream all pitches (active + inactive) for venue management.
+  Stream<List<PitchModel>> streamAllPitches(String venueId) {
+    return _pitchesRef(venueId).snapshots().map((snap) => snap.docs.map(PitchModel.fromFirestore).toList());
+  }
+
+  /// Toggle a pitch's active status.
+  Future<void> togglePitchActive(String venueId, String pitchId, bool active) {
+    return _pitchesRef(venueId).doc(pitchId).update({'active': active});
   }
 
   /// Get a single pitch.

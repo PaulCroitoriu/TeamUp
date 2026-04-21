@@ -11,9 +11,6 @@ sealed class AuthEvent with _$AuthEvent {
     required UserRole role,
     String? businessName,
   }) = _SignUpRequested;
-  const factory AuthEvent.signInRequested({
-    required String email,
-    required String password,
-  }) = _SignInRequested;
+  const factory AuthEvent.signInRequested({required String email, required String password}) = _SignInRequested;
   const factory AuthEvent.signOutRequested() = _SignOutRequested;
 }

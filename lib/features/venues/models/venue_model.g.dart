@@ -6,6 +6,18 @@ part of 'venue_model.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_DayHours _$DayHoursFromJson(Map<String, dynamic> json) => _DayHours(
+  open: json['open'] as String? ?? '09:00',
+  close: json['close'] as String? ?? '22:00',
+  closed: json['closed'] as bool? ?? false,
+);
+
+Map<String, dynamic> _$DayHoursToJson(_DayHours instance) => <String, dynamic>{
+  'open': instance.open,
+  'close': instance.close,
+  'closed': instance.closed,
+};
+
 _VenueModel _$VenueModelFromJson(Map<String, dynamic> json) => _VenueModel(
   id: json['id'] as String,
   businessId: json['businessId'] as String,
@@ -24,26 +36,33 @@ _VenueModel _$VenueModelFromJson(Map<String, dynamic> json) => _VenueModel(
   amenities:
       (json['amenities'] as List<dynamic>?)?.map((e) => e as String).toList() ??
       const [],
+  openingHours:
+      (json['openingHours'] as Map<String, dynamic>?)?.map(
+        (k, e) => MapEntry(k, DayHours.fromJson(e as Map<String, dynamic>)),
+      ) ??
+      const {},
   active: json['active'] as bool? ?? true,
   createdAt: const TimestampConverter().fromJson(json['createdAt']),
 );
 
-Map<String, dynamic> _$VenueModelToJson(_VenueModel instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'businessId': instance.businessId,
-      'name': instance.name,
-      'address': instance.address,
-      'city': instance.city,
-      'location': const GeoPointConverter().toJson(instance.location),
-      'phone': instance.phone,
-      'description': instance.description,
-      'imageUrl': instance.imageUrl,
-      'sports': instance.sports.map((e) => _$SportEnumMap[e]!).toList(),
-      'amenities': instance.amenities,
-      'active': instance.active,
-      'createdAt': const TimestampConverter().toJson(instance.createdAt),
-    };
+Map<String, dynamic> _$VenueModelToJson(
+  _VenueModel instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'businessId': instance.businessId,
+  'name': instance.name,
+  'address': instance.address,
+  'city': instance.city,
+  'location': const GeoPointConverter().toJson(instance.location),
+  'phone': instance.phone,
+  'description': instance.description,
+  'imageUrl': instance.imageUrl,
+  'sports': instance.sports.map((e) => _$SportEnumMap[e]!).toList(),
+  'amenities': instance.amenities,
+  'openingHours': instance.openingHours.map((k, e) => MapEntry(k, e.toJson())),
+  'active': instance.active,
+  'createdAt': const TimestampConverter().toJson(instance.createdAt),
+};
 
 const _$SportEnumMap = {
   Sport.football: 'football',

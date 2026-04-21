@@ -7,6 +7,18 @@ part 'venue_model.freezed.dart';
 part 'venue_model.g.dart';
 
 @freezed
+abstract class DayHours with _$DayHours {
+  const factory DayHours({
+    @Default('09:00') String open,
+    @Default('22:00') String close,
+    @Default(false) bool closed,
+  }) = _DayHours;
+
+  factory DayHours.fromJson(Map<String, dynamic> json) =>
+      _$DayHoursFromJson(json);
+}
+
+@freezed
 abstract class VenueModel with _$VenueModel {
   const factory VenueModel({
     required String id,
@@ -20,6 +32,7 @@ abstract class VenueModel with _$VenueModel {
     String? imageUrl,
     @Default([]) List<Sport> sports,
     @Default([]) List<String> amenities,
+    @Default({}) Map<String, DayHours> openingHours,
     @Default(true) bool active,
     @TimestampConverter() required DateTime createdAt,
   }) = _VenueModel;

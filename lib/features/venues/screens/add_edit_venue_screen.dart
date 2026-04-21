@@ -5,8 +5,20 @@ import 'package:teamup/core/enums/sport.dart';
 import 'package:teamup/features/venues/bloc/venue_bloc.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
 
-class AddEditVenueScreen extends StatefulWidget {
-  const AddEditVenueScreen({
+const _weekdays = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+];
+
+String _capitalize(String s) => s[0].toUpperCase() + s.substring(1);
+
+class AddEditVenueDialog extends StatefulWidget {
+  const AddEditVenueDialog({
     super.key,
     required this.businessId,
     this.venue,
@@ -15,11 +27,29 @@ class AddEditVenueScreen extends StatefulWidget {
   final String businessId;
   final VenueModel? venue;
 
+  static Future<void> show(
+    BuildContext context, {
+    required String businessId,
+    required VenueBloc bloc,
+    VenueModel? venue,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => BlocProvider.value(
+        value: bloc,
+        child: AddEditVenueDialog(
+          businessId: businessId,
+          venue: venue,
+        ),
+      ),
+    );
+  }
+
   @override
-  State<AddEditVenueScreen> createState() => _AddEditVenueScreenState();
+  State<AddEditVenueDialog> createState() => _AddEditVenueDialogState();
 }
 
-class _AddEditVenueScreenState extends State<AddEditVenueScreen> {
+class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   late final TextEditingController _addressCtrl;
@@ -27,6 +57,7 @@ class _AddEditVenueScreenState extends State<AddEditVenueScreen> {
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _descriptionCtrl;
   late List<Sport> _selectedSports;
+  late Map<String, DayHours> _openingHours;
 
   bool get _isEditing => widget.venue != null;
 
@@ -40,6 +71,10 @@ class _AddEditVenueScreenState extends State<AddEditVenueScreen> {
     _phoneCtrl = TextEditingController(text: v?.phone ?? '');
     _descriptionCtrl = TextEditingController(text: v?.description ?? '');
     _selectedSports = List<Sport>.from(v?.sports ?? []);
+    _openingHours = {
+      for (final day in _weekdays)
+        day: v?.openingHours[day] ?? const DayHours(),
+    };
   }
 
   @override
@@ -67,6 +102,7 @@ class _AddEditVenueScreenState extends State<AddEditVenueScreen> {
           ? null
           : _descriptionCtrl.text.trim(),
       sports: _selectedSports,
+      openingHours: _openingHours,
       createdAt: widget.venue?.createdAt ?? DateTime.now(),
     );
 
@@ -83,135 +119,297 @@ class _AddEditVenueScreenState extends State<AddEditVenueScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final isWide = MediaQuery.sizeOf(context).width >= 600;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Venue' : 'New Venue'),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(
-            horizontal: isWide ? 48 : 24,
-            vertical: 24,
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 540),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Dialog(
+      clipBehavior: Clip.antiAlias,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 760),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Title ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(40, 28, 20, 20),
+              child: Row(
                 children: [
-                  // ── Name ──
-                  TextFormField(
-                    controller: _nameCtrl,
-                    textInputAction: TextInputAction.next,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      hintText: 'Venue name',
-                      prefixIcon: Icon(Icons.store_outlined),
-                    ),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Address ──
-                  TextFormField(
-                    controller: _addressCtrl,
-                    textInputAction: TextInputAction.next,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      hintText: 'Address',
-                      prefixIcon: Icon(Icons.location_on_outlined),
-                    ),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── City ──
-                  TextFormField(
-                    controller: _cityCtrl,
-                    textInputAction: TextInputAction.next,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      hintText: 'City',
-                      prefixIcon: Icon(Icons.location_city_outlined),
-                    ),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Phone ──
-                  TextFormField(
-                    controller: _phoneCtrl,
-                    textInputAction: TextInputAction.next,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      hintText: 'Phone (optional)',
-                      prefixIcon: Icon(Icons.phone_outlined),
+                  Expanded(
+                    child: Text(
+                      _isEditing ? 'Edit Venue' : 'New Venue',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // ── Description ──
-                  TextFormField(
-                    controller: _descriptionCtrl,
-                    textInputAction: TextInputAction.newline,
-                    maxLines: 3,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      hintText: 'Description (optional)',
-                      prefixIcon: Icon(Icons.notes_outlined),
-                      alignLabelWithHint: true,
-                    ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
                   ),
-                  const SizedBox(height: 24),
-
-                  // ── Sports ──
-                  Text(
-                    'Sports offered',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: Sport.values.map((sport) {
-                      final selected = _selectedSports.contains(sport);
-                      return FilterChip(
-                        label: Text(sport.label),
-                        selected: selected,
-                        selectedColor: colors.secondary.withAlpha(30),
-                        checkmarkColor: colors.secondary,
-                        onSelected: (on) {
-                          setState(() {
-                            if (on) {
-                              _selectedSports.add(sport);
-                            } else {
-                              _selectedSports.remove(sport);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // ── Submit ──
-                  ElevatedButton(
-                    onPressed: _submit,
-                    child: Text(_isEditing ? 'Save changes' : 'Create venue'),
-                  ),
-                  const SizedBox(height: 24),
                 ],
               ),
             ),
+            const Divider(height: 1),
+
+            // ── Form ──
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(40, 28, 40, 40),
+                child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── Name ──
+                    TextFormField(
+                      controller: _nameCtrl,
+                      textInputAction: TextInputAction.next,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        hintText: 'Venue name',
+                        prefixIcon: Icon(Icons.store_outlined),
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Address ──
+                    TextFormField(
+                      controller: _addressCtrl,
+                      textInputAction: TextInputAction.next,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        hintText: 'Address',
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── City ──
+                    TextFormField(
+                      controller: _cityCtrl,
+                      textInputAction: TextInputAction.next,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        hintText: 'City',
+                        prefixIcon: Icon(Icons.location_city_outlined),
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Phone ──
+                    TextFormField(
+                      controller: _phoneCtrl,
+                      textInputAction: TextInputAction.next,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        hintText: 'Phone (optional)',
+                        prefixIcon: Icon(Icons.phone_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Description ──
+                    TextFormField(
+                      controller: _descriptionCtrl,
+                      textInputAction: TextInputAction.newline,
+                      maxLines: 3,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        hintText: 'Description (optional)',
+                        prefixIcon: Icon(Icons.notes_outlined),
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ── Sports ──
+                    Text(
+                      'Sports offered',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: Sport.values.map((sport) {
+                        final selected = _selectedSports.contains(sport);
+                        return FilterChip(
+                          label: Text(sport.label),
+                          selected: selected,
+                          onSelected: (on) {
+                            setState(() {
+                              if (on) {
+                                _selectedSports.add(sport);
+                              } else {
+                                _selectedSports.remove(sport);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // ── Opening hours ──
+                    Text(
+                      'Opening hours',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ..._weekdays.map((day) {
+                      final hours = _openingHours[day]!;
+                      return _DayHoursRow(
+                        day: day,
+                        hours: hours,
+                        onChanged: (updated) =>
+                            setState(() => _openingHours[day] = updated),
+                      );
+                    }),
+                    const SizedBox(height: 32),
+
+                    // ── Submit ──
+                    ElevatedButton(
+                      onPressed: _submit,
+                      child:
+                          Text(_isEditing ? 'Save changes' : 'Create venue'),
+                    ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DayHoursRow extends StatelessWidget {
+  const _DayHoursRow({
+    required this.day,
+    required this.hours,
+    required this.onChanged,
+  });
+  final String day;
+  final DayHours hours;
+  final ValueChanged<DayHours> onChanged;
+
+  Future<TimeOfDay?> _pickTime(BuildContext context, String initial) async {
+    final parts = initial.split(':');
+    return showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: int.parse(parts[0]),
+        minute: int.parse(parts[1]),
+      ),
+    );
+  }
+
+  String _fmt(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          // Day label
+          SizedBox(
+            width: 90,
+            child: Text(
+              _capitalize(day),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          // Closed toggle
+          SizedBox(
+            width: 70,
+            child: TextButton(
+              onPressed: () =>
+                  onChanged(hours.copyWith(closed: !hours.closed)),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 36),
+                foregroundColor:
+                    hours.closed ? colors.error : colors.onSurface.withAlpha(100),
+              ),
+              child: Text(
+                hours.closed ? 'Closed' : 'Open',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Time pickers
+          if (!hours.closed) ...[
+            _TimeChip(
+              label: hours.open,
+              onTap: () async {
+                final t = await _pickTime(context, hours.open);
+                if (t != null) onChanged(hours.copyWith(open: _fmt(t)));
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(
+                '–',
+                style: TextStyle(color: colors.onSurface.withAlpha(100)),
+              ),
+            ),
+            _TimeChip(
+              label: hours.close,
+              onTap: () async {
+                final t = await _pickTime(context, hours.close);
+                if (t != null) onChanged(hours.copyWith(close: _fmt(t)));
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TimeChip extends StatelessWidget {
+  const _TimeChip({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border.all(color: colors.onSurface.withAlpha(30)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: colors.onSurface,
           ),
         ),
       ),
