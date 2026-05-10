@@ -16,7 +16,8 @@
         "-d",
         "web-server",
         "--web-port",
-        "5050"
+        "5050",
+        "--dart-define=FCM_VAPID_KEY=BFGbmi6kz_deIBzOQNre3QRUqgru_eYGtWHPmRwRq3BZUOggYGCoPDKOA16rVl-l632MPiHzOJVGNcYy__NBUOY"
       ],
     },
     {

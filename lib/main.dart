@@ -11,9 +11,7 @@ import 'package:teamup/core/navigation/app_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const TeamUpApp());
 }
 
@@ -24,10 +22,7 @@ class TeamUpApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (_) => AuthBloc(authService: AuthService())
-            ..add(const AuthEvent.appStarted()),
-        ),
+        BlocProvider(create: (_) => AuthBloc(authService: AuthService())..add(const AuthEvent.appStarted())),
         BlocProvider(create: (_) => ThemeCubit()),
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(
@@ -61,13 +56,7 @@ class _SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      body: Center(
-        child: Icon(
-          Icons.sports_soccer_rounded,
-          size: 64,
-          color: colors.primary,
-        ),
-      ),
+      body: Center(child: Icon(Icons.sports_soccer_rounded, size: 64, color: colors.primary)),
     );
   }
 }

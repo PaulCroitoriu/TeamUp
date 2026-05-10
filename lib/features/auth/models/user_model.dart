@@ -24,6 +24,11 @@ abstract class UserModel with _$UserModel {
     required UserRole role,
     String? businessId,
     String? photoUrl,
+
+    /// FCM device tokens for sending push notifications. Each device adds
+    /// its own token on sign-in and is responsible for cleaning up its own
+    /// token on sign-out / when the token rotates.
+    @Default(<String>[]) List<String> fcmTokens,
     @TimestampConverter() required DateTime createdAt,
   }) = _UserModel;
 

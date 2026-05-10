@@ -14,6 +14,9 @@ _UserModel _$UserModelFromJson(Map<String, dynamic> json) => _UserModel(
   role: $enumDecode(_$UserRoleEnumMap, json['role']),
   businessId: json['businessId'] as String?,
   photoUrl: json['photoUrl'] as String?,
+  fcmTokens:
+      (json['fcmTokens'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const <String>[],
   createdAt: const TimestampConverter().fromJson(json['createdAt']),
 );
 
@@ -26,6 +29,7 @@ Map<String, dynamic> _$UserModelToJson(_UserModel instance) =>
       'role': _$UserRoleEnumMap[instance.role]!,
       'businessId': instance.businessId,
       'photoUrl': instance.photoUrl,
+      'fcmTokens': instance.fcmTokens,
       'createdAt': const TimestampConverter().toJson(instance.createdAt),
     };
 

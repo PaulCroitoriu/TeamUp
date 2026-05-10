@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:teamup/features/auth/models/user_model.dart';
+import 'package:teamup/features/notifications/data/push_service.dart';
+import 'package:teamup/features/notifications/widgets/notification_toast_listener.dart';
 import 'package:teamup/features/games/screens/explore_screen.dart';
 import 'package:teamup/features/games/screens/my_games_screen.dart';
 import 'package:teamup/features/messaging/screens/conversations_screen.dart';
@@ -21,8 +23,29 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
   bool _sidebarExpanded = true;
+  final _pushService = PushService();
 
   bool get _isBusiness => widget.user.role == UserRole.business;
+
+  @override
+  void initState() {
+    super.initState();
+    _pushService.register(widget.user.uid);
+  }
+
+  @override
+  void didUpdateWidget(covariant AppShell old) {
+    super.didUpdateWidget(old);
+    if (old.user.uid != widget.user.uid) {
+      _pushService.register(widget.user.uid);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pushService.unregister(widget.user.uid);
+    super.dispose();
+  }
 
   List<_Destination> get _destinations => _isBusiness
       ? const [
@@ -39,18 +62,8 @@ class _AppShellState extends State<AppShell> {
         ];
 
   List<Widget> get _screens => _isBusiness
-      ? const [
-          DashboardScreen(),
-          ManageVenuesScreen(),
-          ManageBookingsScreen(),
-          SettingsScreen(),
-        ]
-      : const [
-          ExploreScreen(),
-          MyGamesScreen(),
-          ConversationsScreen(),
-          SettingsScreen(),
-        ];
+      ? const [DashboardScreen(), ManageVenuesScreen(), ManageBookingsScreen(), SettingsScreen()]
+      : const [ExploreScreen(), MyGamesScreen(), ConversationsScreen(), SettingsScreen()];
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +71,11 @@ class _AppShellState extends State<AppShell> {
     final colors = Theme.of(context).colorScheme;
     final destinations = _destinations;
 
+    final shell = _buildShell(context, isWide, colors, destinations);
+    return NotificationToastListener(userId: widget.user.uid, child: shell);
+  }
+
+  Widget _buildShell(BuildContext context, bool isWide, ColorScheme colors, List<_Destination> destinations) {
     if (isWide) {
       return Scaffold(
         body: Row(
@@ -67,14 +85,9 @@ class _AppShellState extends State<AppShell> {
               selectedIndex: _index,
               destinations: destinations,
               onSelected: (i) => setState(() => _index = i),
-              onToggle: () =>
-                  setState(() => _sidebarExpanded = !_sidebarExpanded),
+              onToggle: () => setState(() => _sidebarExpanded = !_sidebarExpanded),
             ),
-            VerticalDivider(
-              width: 1,
-              thickness: 1,
-              color: colors.onSurface.withAlpha(20),
-            ),
+            VerticalDivider(width: 1, thickness: 1, color: colors.onSurface.withAlpha(20)),
             Expanded(child: _screens[_index]),
           ],
         ),
@@ -111,13 +124,7 @@ class _Destination {
 }
 
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({
-    required this.expanded,
-    required this.selectedIndex,
-    required this.destinations,
-    required this.onSelected,
-    required this.onToggle,
-  });
+  const _Sidebar({required this.expanded, required this.selectedIndex, required this.destinations, required this.onSelected, required this.onToggle});
 
   final bool expanded;
   final int selectedIndex;
@@ -147,64 +154,50 @@ class _Sidebar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-          // ── Brand ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-            child: Row(
-              children: [
-                Icon(Icons.sports_soccer_rounded, color: colors.primary, size: 28),
-                if (expanded) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'TeamUp',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.onSurface,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
+                // ── Brand ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                  child: Row(
+                    children: [
+                      Icon(Icons.sports_soccer_rounded, color: colors.primary, size: 28),
+                      if (expanded) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'TeamUp',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: colors.onSurface, fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
+                ),
+                // ── Destinations ──
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    itemCount: destinations.length,
+                    itemBuilder: (_, i) =>
+                        _SidebarItem(destination: destinations[i], selected: selectedIndex == i, expanded: expanded, onTap: () => onSelected(i)),
+                  ),
+                ),
+                // ── Collapse toggle ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+                  child: _SidebarToggle(expanded: expanded, onTap: onToggle),
+                ),
               ],
             ),
           ),
-          // ── Destinations ──
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: destinations.length,
-              itemBuilder: (_, i) => _SidebarItem(
-                destination: destinations[i],
-                selected: selectedIndex == i,
-                expanded: expanded,
-                onTap: () => onSelected(i),
-              ),
-            ),
-          ),
-          // ── Collapse toggle ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-            child: _SidebarToggle(expanded: expanded, onTap: onToggle),
-          ),
-            ],
-          ),
         ),
       ),
-    ),
     );
   }
 }
 
 class _SidebarItem extends StatelessWidget {
-  const _SidebarItem({
-    required this.destination,
-    required this.selected,
-    required this.expanded,
-    required this.onTap,
-  });
+  const _SidebarItem({required this.destination, required this.selected, required this.expanded, required this.onTap});
 
   final _Destination destination;
   final bool selected;
@@ -221,22 +214,14 @@ class _SidebarItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
-          Icon(
-            selected ? destination.selectedIcon : destination.icon,
-            color: iconColor,
-            size: 22,
-          ),
+          Icon(selected ? destination.selectedIcon : destination.icon, color: iconColor, size: 22),
           if (expanded) ...[
             const SizedBox(width: 14),
             Expanded(
               child: Text(
                 destination.label,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: labelColor,
-                  fontSize: 14,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                ),
+                style: TextStyle(color: labelColor, fontSize: 14, fontWeight: selected ? FontWeight.w600 : FontWeight.w500),
               ),
             ),
           ],
@@ -252,10 +237,7 @@ class _SidebarItem extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(6),
-          child: Tooltip(
-            message: expanded ? '' : destination.label,
-            child: content,
-          ),
+          child: Tooltip(message: expanded ? '' : destination.label, child: content),
         ),
       ),
     );
@@ -283,9 +265,7 @@ class _SidebarToggle extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                expanded
-                    ? Icons.keyboard_double_arrow_left_rounded
-                    : Icons.keyboard_double_arrow_right_rounded,
+                expanded ? Icons.keyboard_double_arrow_left_rounded : Icons.keyboard_double_arrow_right_rounded,
                 color: colors.onSurfaceVariant,
                 size: 20,
               ),
@@ -293,11 +273,7 @@ class _SidebarToggle extends StatelessWidget {
                 const SizedBox(width: 14),
                 Text(
                   'Collapse',
-                  style: TextStyle(
-                    color: colors.onSurfaceVariant,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500),
                 ),
               ],
             ],

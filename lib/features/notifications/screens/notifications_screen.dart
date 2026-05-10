@@ -26,35 +26,37 @@ class NotificationsScreen extends StatelessWidget {
         title: const Text('Notifications'),
         actions: [TextButton(onPressed: () => service.markAllRead(userId), child: const Text('Mark all read'))],
       ),
-      body: StreamBuilder<List<NotificationModel>>(
-        stream: service.streamForUser(userId),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final items = snap.data ?? [];
-          if (items.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.notifications_none_rounded, size: 48, color: colors.onSurface.withAlpha(60)),
-                    const SizedBox(height: 16),
-                    Text('No notifications yet', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                  ],
+      body: SelectionArea(
+        child: StreamBuilder<List<NotificationModel>>(
+          stream: service.streamForUser(userId),
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final items = snap.data ?? [];
+            if (items.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.notifications_none_rounded, size: 48, color: colors.onSurface.withAlpha(60)),
+                      const SizedBox(height: 16),
+                      Text('No notifications yet', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }
+              );
+            }
 
-          return ListView.separated(
-            itemCount: items.length,
-            separatorBuilder: (_, __) => Divider(height: 1, color: colors.onSurface.withAlpha(15)),
-            itemBuilder: (_, i) => _NotificationTile(notification: items[i], service: service),
-          );
-        },
+            return ListView.separated(
+              itemCount: items.length,
+              separatorBuilder: (_, __) => Divider(height: 1, color: colors.onSurface.withAlpha(15)),
+              itemBuilder: (_, i) => _NotificationTile(notification: items[i], service: service),
+            );
+          },
+        ),
       ),
     );
   }

@@ -37,18 +37,20 @@ class _BookingsBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Bookings'), actions: const [NotificationsBell(), SizedBox(width: 4)]),
-      body: BlocBuilder<BookingBloc, BookingState>(
-        builder: (context, state) {
-          return state.maybeMap(
-            loading: (_) => const Center(child: CircularProgressIndicator()),
-            loaded: (s) {
-              if (s.bookings.isEmpty) return const _EmptyState();
-              return _BookingsList(bookings: s.bookings, showBooker: true);
-            },
-            error: (e) => Center(child: Text(e.message)),
-            orElse: () => const SizedBox.shrink(),
-          );
-        },
+      body: SelectionArea(
+        child: BlocBuilder<BookingBloc, BookingState>(
+          builder: (context, state) {
+            return state.maybeMap(
+              loading: (_) => const Center(child: CircularProgressIndicator()),
+              loaded: (s) {
+                if (s.bookings.isEmpty) return const _EmptyState();
+                return _BookingsList(bookings: s.bookings, showBooker: true);
+              },
+              error: (e) => Center(child: Text(e.message)),
+              orElse: () => const SizedBox.shrink(),
+            );
+          },
+        ),
       ),
     );
   }

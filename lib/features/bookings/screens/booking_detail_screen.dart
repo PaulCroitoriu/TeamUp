@@ -62,42 +62,44 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Booking')),
-      body: StreamBuilder<BookingModel>(
-        stream: _bookingService.streamBooking(widget.bookingId),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snap.hasError) {
-            return Center(child: Text(snap.error.toString()));
-          }
-          final booking = snap.data!;
+      body: SelectionArea(
+        child: StreamBuilder<BookingModel>(
+          stream: _bookingService.streamBooking(widget.bookingId),
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snap.hasError) {
+              return Center(child: Text(snap.error.toString()));
+            }
+            final booking = snap.data!;
 
-          // Load related entities once per bookingId.
-          if (_loadedForBookingId != booking.id) {
-            _loadedForBookingId = booking.id;
-            _contextFuture = _loadContext(booking);
-          }
+            // Load related entities once per bookingId.
+            if (_loadedForBookingId != booking.id) {
+              _loadedForBookingId = booking.id;
+              _contextFuture = _loadContext(booking);
+            }
 
-          return FutureBuilder<_BookingContext>(
-            future: _contextFuture,
-            builder: (context, ctxSnap) {
-              if (!ctxSnap.hasData) {
-                if (ctxSnap.hasError) {
-                  return Center(child: Text(ctxSnap.error.toString()));
+            return FutureBuilder<_BookingContext>(
+              future: _contextFuture,
+              builder: (context, ctxSnap) {
+                if (!ctxSnap.hasData) {
+                  if (ctxSnap.hasError) {
+                    return Center(child: Text(ctxSnap.error.toString()));
+                  }
+                  return const Center(child: CircularProgressIndicator());
                 }
-                return const Center(child: CircularProgressIndicator());
-              }
-              return _DetailBody(
-                booking: booking,
-                ctx: ctxSnap.data!,
-                bookingService: _bookingService,
-                notificationService: _notificationService,
-                messagingService: _messagingService,
-              );
-            },
-          );
-        },
+                return _DetailBody(
+                  booking: booking,
+                  ctx: ctxSnap.data!,
+                  bookingService: _bookingService,
+                  notificationService: _notificationService,
+                  messagingService: _messagingService,
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
