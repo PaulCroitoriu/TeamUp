@@ -7,8 +7,17 @@ part 'message_model.g.dart';
 
 @freezed
 abstract class MessageModel with _$MessageModel {
-  const factory MessageModel({required String id, required String senderId, required String text, @TimestampConverter() required DateTime sentAt}) =
-      _MessageModel;
+  const factory MessageModel({
+    required String id,
+    required String senderId,
+    required String text,
+
+    /// Mirrored from the parent conversation. Lets Firestore security
+    /// rules verify membership without a cross-doc lookup, which avoids
+    /// `getAfter` edge cases on first-message creation.
+    @Default(<String>[]) List<String> participantIds,
+    @TimestampConverter() required DateTime sentAt,
+  }) = _MessageModel;
 
   factory MessageModel.fromJson(Map<String, dynamic> json) => _$MessageModelFromJson(json);
 

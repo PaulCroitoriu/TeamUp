@@ -19,7 +19,9 @@ mixin _$PitchModel {
  int get pricePerHour;/// Currency code, e.g. "RON", "EUR".
  String get currency;/// Surface type: grass, artificial, indoor, clay, etc.
  String? get surface;/// Whether the pitch is covered / indoor.
- bool get indoor; List<String> get imageUrls; bool get active;@TimestampConverter() DateTime get createdAt;
+ bool get indoor;/// Pitch lights for evening play. True by default since most modern
+/// pitches are lit.
+ bool get isIlluminated; List<String> get imageUrls; bool get active;@TimestampConverter() DateTime get createdAt;
 /// Create a copy of PitchModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -32,16 +34,16 @@ $PitchModelCopyWith<PitchModel> get copyWith => _$PitchModelCopyWithImpl<PitchMo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PitchModel&&(identical(other.id, id) || other.id == id)&&(identical(other.venueId, venueId) || other.venueId == venueId)&&(identical(other.name, name) || other.name == name)&&(identical(other.sport, sport) || other.sport == sport)&&(identical(other.maxPlayers, maxPlayers) || other.maxPlayers == maxPlayers)&&(identical(other.pricePerHour, pricePerHour) || other.pricePerHour == pricePerHour)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.surface, surface) || other.surface == surface)&&(identical(other.indoor, indoor) || other.indoor == indoor)&&const DeepCollectionEquality().equals(other.imageUrls, imageUrls)&&(identical(other.active, active) || other.active == active)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PitchModel&&(identical(other.id, id) || other.id == id)&&(identical(other.venueId, venueId) || other.venueId == venueId)&&(identical(other.name, name) || other.name == name)&&(identical(other.sport, sport) || other.sport == sport)&&(identical(other.maxPlayers, maxPlayers) || other.maxPlayers == maxPlayers)&&(identical(other.pricePerHour, pricePerHour) || other.pricePerHour == pricePerHour)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.surface, surface) || other.surface == surface)&&(identical(other.indoor, indoor) || other.indoor == indoor)&&(identical(other.isIlluminated, isIlluminated) || other.isIlluminated == isIlluminated)&&const DeepCollectionEquality().equals(other.imageUrls, imageUrls)&&(identical(other.active, active) || other.active == active)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,venueId,name,sport,maxPlayers,pricePerHour,currency,surface,indoor,const DeepCollectionEquality().hash(imageUrls),active,createdAt);
+int get hashCode => Object.hash(runtimeType,id,venueId,name,sport,maxPlayers,pricePerHour,currency,surface,indoor,isIlluminated,const DeepCollectionEquality().hash(imageUrls),active,createdAt);
 
 @override
 String toString() {
-  return 'PitchModel(id: $id, venueId: $venueId, name: $name, sport: $sport, maxPlayers: $maxPlayers, pricePerHour: $pricePerHour, currency: $currency, surface: $surface, indoor: $indoor, imageUrls: $imageUrls, active: $active, createdAt: $createdAt)';
+  return 'PitchModel(id: $id, venueId: $venueId, name: $name, sport: $sport, maxPlayers: $maxPlayers, pricePerHour: $pricePerHour, currency: $currency, surface: $surface, indoor: $indoor, isIlluminated: $isIlluminated, imageUrls: $imageUrls, active: $active, createdAt: $createdAt)';
 }
 
 
@@ -52,7 +54,7 @@ abstract mixin class $PitchModelCopyWith<$Res>  {
   factory $PitchModelCopyWith(PitchModel value, $Res Function(PitchModel) _then) = _$PitchModelCopyWithImpl;
 @useResult
 $Res call({
- String id, String venueId, String name, Sport sport, int maxPlayers, int pricePerHour, String currency, String? surface, bool indoor, List<String> imageUrls, bool active,@TimestampConverter() DateTime createdAt
+ String id, String venueId, String name, Sport sport, int maxPlayers, int pricePerHour, String currency, String? surface, bool indoor, bool isIlluminated, List<String> imageUrls, bool active,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -69,7 +71,7 @@ class _$PitchModelCopyWithImpl<$Res>
 
 /// Create a copy of PitchModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? venueId = null,Object? name = null,Object? sport = null,Object? maxPlayers = null,Object? pricePerHour = null,Object? currency = null,Object? surface = freezed,Object? indoor = null,Object? imageUrls = null,Object? active = null,Object? createdAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? venueId = null,Object? name = null,Object? sport = null,Object? maxPlayers = null,Object? pricePerHour = null,Object? currency = null,Object? surface = freezed,Object? indoor = null,Object? isIlluminated = null,Object? imageUrls = null,Object? active = null,Object? createdAt = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,venueId: null == venueId ? _self.venueId : venueId // ignore: cast_nullable_to_non_nullable
@@ -80,6 +82,7 @@ as int,pricePerHour: null == pricePerHour ? _self.pricePerHour : pricePerHour //
 as int,currency: null == currency ? _self.currency : currency // ignore: cast_nullable_to_non_nullable
 as String,surface: freezed == surface ? _self.surface : surface // ignore: cast_nullable_to_non_nullable
 as String?,indoor: null == indoor ? _self.indoor : indoor // ignore: cast_nullable_to_non_nullable
+as bool,isIlluminated: null == isIlluminated ? _self.isIlluminated : isIlluminated // ignore: cast_nullable_to_non_nullable
 as bool,imageUrls: null == imageUrls ? _self.imageUrls : imageUrls // ignore: cast_nullable_to_non_nullable
 as List<String>,active: null == active ? _self.active : active // ignore: cast_nullable_to_non_nullable
 as bool,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
@@ -168,10 +171,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String venueId,  String name,  Sport sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  List<String> imageUrls,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String venueId,  String name,  Sport sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  bool isIlluminated,  List<String> imageUrls,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PitchModel() when $default != null:
-return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_that.pricePerHour,_that.currency,_that.surface,_that.indoor,_that.imageUrls,_that.active,_that.createdAt);case _:
+return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_that.pricePerHour,_that.currency,_that.surface,_that.indoor,_that.isIlluminated,_that.imageUrls,_that.active,_that.createdAt);case _:
   return orElse();
 
 }
@@ -189,10 +192,10 @@ return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String venueId,  String name,  Sport sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  List<String> imageUrls,  bool active, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String venueId,  String name,  Sport sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  bool isIlluminated,  List<String> imageUrls,  bool active, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
 switch (_that) {
 case _PitchModel():
-return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_that.pricePerHour,_that.currency,_that.surface,_that.indoor,_that.imageUrls,_that.active,_that.createdAt);case _:
+return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_that.pricePerHour,_that.currency,_that.surface,_that.indoor,_that.isIlluminated,_that.imageUrls,_that.active,_that.createdAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -209,10 +212,10 @@ return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String venueId,  String name,  Sport sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  List<String> imageUrls,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String venueId,  String name,  Sport sport,  int maxPlayers,  int pricePerHour,  String currency,  String? surface,  bool indoor,  bool isIlluminated,  List<String> imageUrls,  bool active, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
 switch (_that) {
 case _PitchModel() when $default != null:
-return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_that.pricePerHour,_that.currency,_that.surface,_that.indoor,_that.imageUrls,_that.active,_that.createdAt);case _:
+return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_that.pricePerHour,_that.currency,_that.surface,_that.indoor,_that.isIlluminated,_that.imageUrls,_that.active,_that.createdAt);case _:
   return null;
 
 }
@@ -224,7 +227,7 @@ return $default(_that.id,_that.venueId,_that.name,_that.sport,_that.maxPlayers,_
 @JsonSerializable()
 
 class _PitchModel implements PitchModel {
-  const _PitchModel({required this.id, required this.venueId, required this.name, required this.sport, required this.maxPlayers, required this.pricePerHour, this.currency = 'RON', this.surface, this.indoor = false, final  List<String> imageUrls = const [], this.active = true, @TimestampConverter() required this.createdAt}): _imageUrls = imageUrls;
+  const _PitchModel({required this.id, required this.venueId, required this.name, required this.sport, required this.maxPlayers, required this.pricePerHour, this.currency = 'RON', this.surface, this.indoor = false, this.isIlluminated = true, final  List<String> imageUrls = const [], this.active = true, @TimestampConverter() required this.createdAt}): _imageUrls = imageUrls;
   factory _PitchModel.fromJson(Map<String, dynamic> json) => _$PitchModelFromJson(json);
 
 @override final  String id;
@@ -240,6 +243,9 @@ class _PitchModel implements PitchModel {
 @override final  String? surface;
 /// Whether the pitch is covered / indoor.
 @override@JsonKey() final  bool indoor;
+/// Pitch lights for evening play. True by default since most modern
+/// pitches are lit.
+@override@JsonKey() final  bool isIlluminated;
  final  List<String> _imageUrls;
 @override@JsonKey() List<String> get imageUrls {
   if (_imageUrls is EqualUnmodifiableListView) return _imageUrls;
@@ -263,16 +269,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PitchModel&&(identical(other.id, id) || other.id == id)&&(identical(other.venueId, venueId) || other.venueId == venueId)&&(identical(other.name, name) || other.name == name)&&(identical(other.sport, sport) || other.sport == sport)&&(identical(other.maxPlayers, maxPlayers) || other.maxPlayers == maxPlayers)&&(identical(other.pricePerHour, pricePerHour) || other.pricePerHour == pricePerHour)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.surface, surface) || other.surface == surface)&&(identical(other.indoor, indoor) || other.indoor == indoor)&&const DeepCollectionEquality().equals(other._imageUrls, _imageUrls)&&(identical(other.active, active) || other.active == active)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PitchModel&&(identical(other.id, id) || other.id == id)&&(identical(other.venueId, venueId) || other.venueId == venueId)&&(identical(other.name, name) || other.name == name)&&(identical(other.sport, sport) || other.sport == sport)&&(identical(other.maxPlayers, maxPlayers) || other.maxPlayers == maxPlayers)&&(identical(other.pricePerHour, pricePerHour) || other.pricePerHour == pricePerHour)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.surface, surface) || other.surface == surface)&&(identical(other.indoor, indoor) || other.indoor == indoor)&&(identical(other.isIlluminated, isIlluminated) || other.isIlluminated == isIlluminated)&&const DeepCollectionEquality().equals(other._imageUrls, _imageUrls)&&(identical(other.active, active) || other.active == active)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,venueId,name,sport,maxPlayers,pricePerHour,currency,surface,indoor,const DeepCollectionEquality().hash(_imageUrls),active,createdAt);
+int get hashCode => Object.hash(runtimeType,id,venueId,name,sport,maxPlayers,pricePerHour,currency,surface,indoor,isIlluminated,const DeepCollectionEquality().hash(_imageUrls),active,createdAt);
 
 @override
 String toString() {
-  return 'PitchModel(id: $id, venueId: $venueId, name: $name, sport: $sport, maxPlayers: $maxPlayers, pricePerHour: $pricePerHour, currency: $currency, surface: $surface, indoor: $indoor, imageUrls: $imageUrls, active: $active, createdAt: $createdAt)';
+  return 'PitchModel(id: $id, venueId: $venueId, name: $name, sport: $sport, maxPlayers: $maxPlayers, pricePerHour: $pricePerHour, currency: $currency, surface: $surface, indoor: $indoor, isIlluminated: $isIlluminated, imageUrls: $imageUrls, active: $active, createdAt: $createdAt)';
 }
 
 
@@ -283,7 +289,7 @@ abstract mixin class _$PitchModelCopyWith<$Res> implements $PitchModelCopyWith<$
   factory _$PitchModelCopyWith(_PitchModel value, $Res Function(_PitchModel) _then) = __$PitchModelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String venueId, String name, Sport sport, int maxPlayers, int pricePerHour, String currency, String? surface, bool indoor, List<String> imageUrls, bool active,@TimestampConverter() DateTime createdAt
+ String id, String venueId, String name, Sport sport, int maxPlayers, int pricePerHour, String currency, String? surface, bool indoor, bool isIlluminated, List<String> imageUrls, bool active,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -300,7 +306,7 @@ class __$PitchModelCopyWithImpl<$Res>
 
 /// Create a copy of PitchModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? venueId = null,Object? name = null,Object? sport = null,Object? maxPlayers = null,Object? pricePerHour = null,Object? currency = null,Object? surface = freezed,Object? indoor = null,Object? imageUrls = null,Object? active = null,Object? createdAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? venueId = null,Object? name = null,Object? sport = null,Object? maxPlayers = null,Object? pricePerHour = null,Object? currency = null,Object? surface = freezed,Object? indoor = null,Object? isIlluminated = null,Object? imageUrls = null,Object? active = null,Object? createdAt = null,}) {
   return _then(_PitchModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,venueId: null == venueId ? _self.venueId : venueId // ignore: cast_nullable_to_non_nullable
@@ -311,6 +317,7 @@ as int,pricePerHour: null == pricePerHour ? _self.pricePerHour : pricePerHour //
 as int,currency: null == currency ? _self.currency : currency // ignore: cast_nullable_to_non_nullable
 as String,surface: freezed == surface ? _self.surface : surface // ignore: cast_nullable_to_non_nullable
 as String?,indoor: null == indoor ? _self.indoor : indoor // ignore: cast_nullable_to_non_nullable
+as bool,isIlluminated: null == isIlluminated ? _self.isIlluminated : isIlluminated // ignore: cast_nullable_to_non_nullable
 as bool,imageUrls: null == imageUrls ? _self._imageUrls : imageUrls // ignore: cast_nullable_to_non_nullable
 as List<String>,active: null == active ? _self.active : active // ignore: cast_nullable_to_non_nullable
 as bool,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable

@@ -15,7 +15,10 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$MessageModel {
 
- String get id; String get senderId; String get text;@TimestampConverter() DateTime get sentAt;
+ String get id; String get senderId; String get text;/// Mirrored from the parent conversation. Lets Firestore security
+/// rules verify membership without a cross-doc lookup, which avoids
+/// `getAfter` edge cases on first-message creation.
+ List<String> get participantIds;@TimestampConverter() DateTime get sentAt;
 /// Create a copy of MessageModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +31,16 @@ $MessageModelCopyWith<MessageModel> get copyWith => _$MessageModelCopyWithImpl<M
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageModel&&(identical(other.id, id) || other.id == id)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.text, text) || other.text == text)&&(identical(other.sentAt, sentAt) || other.sentAt == sentAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageModel&&(identical(other.id, id) || other.id == id)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.text, text) || other.text == text)&&const DeepCollectionEquality().equals(other.participantIds, participantIds)&&(identical(other.sentAt, sentAt) || other.sentAt == sentAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,senderId,text,sentAt);
+int get hashCode => Object.hash(runtimeType,id,senderId,text,const DeepCollectionEquality().hash(participantIds),sentAt);
 
 @override
 String toString() {
-  return 'MessageModel(id: $id, senderId: $senderId, text: $text, sentAt: $sentAt)';
+  return 'MessageModel(id: $id, senderId: $senderId, text: $text, participantIds: $participantIds, sentAt: $sentAt)';
 }
 
 
@@ -48,7 +51,7 @@ abstract mixin class $MessageModelCopyWith<$Res>  {
   factory $MessageModelCopyWith(MessageModel value, $Res Function(MessageModel) _then) = _$MessageModelCopyWithImpl;
 @useResult
 $Res call({
- String id, String senderId, String text,@TimestampConverter() DateTime sentAt
+ String id, String senderId, String text, List<String> participantIds,@TimestampConverter() DateTime sentAt
 });
 
 
@@ -65,12 +68,13 @@ class _$MessageModelCopyWithImpl<$Res>
 
 /// Create a copy of MessageModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? senderId = null,Object? text = null,Object? sentAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? senderId = null,Object? text = null,Object? participantIds = null,Object? sentAt = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,senderId: null == senderId ? _self.senderId : senderId // ignore: cast_nullable_to_non_nullable
 as String,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
-as String,sentAt: null == sentAt ? _self.sentAt : sentAt // ignore: cast_nullable_to_non_nullable
+as String,participantIds: null == participantIds ? _self.participantIds : participantIds // ignore: cast_nullable_to_non_nullable
+as List<String>,sentAt: null == sentAt ? _self.sentAt : sentAt // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }
@@ -156,10 +160,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String senderId,  String text, @TimestampConverter()  DateTime sentAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String senderId,  String text,  List<String> participantIds, @TimestampConverter()  DateTime sentAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _MessageModel() when $default != null:
-return $default(_that.id,_that.senderId,_that.text,_that.sentAt);case _:
+return $default(_that.id,_that.senderId,_that.text,_that.participantIds,_that.sentAt);case _:
   return orElse();
 
 }
@@ -177,10 +181,10 @@ return $default(_that.id,_that.senderId,_that.text,_that.sentAt);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String senderId,  String text, @TimestampConverter()  DateTime sentAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String senderId,  String text,  List<String> participantIds, @TimestampConverter()  DateTime sentAt)  $default,) {final _that = this;
 switch (_that) {
 case _MessageModel():
-return $default(_that.id,_that.senderId,_that.text,_that.sentAt);case _:
+return $default(_that.id,_that.senderId,_that.text,_that.participantIds,_that.sentAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -197,10 +201,10 @@ return $default(_that.id,_that.senderId,_that.text,_that.sentAt);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String senderId,  String text, @TimestampConverter()  DateTime sentAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String senderId,  String text,  List<String> participantIds, @TimestampConverter()  DateTime sentAt)?  $default,) {final _that = this;
 switch (_that) {
 case _MessageModel() when $default != null:
-return $default(_that.id,_that.senderId,_that.text,_that.sentAt);case _:
+return $default(_that.id,_that.senderId,_that.text,_that.participantIds,_that.sentAt);case _:
   return null;
 
 }
@@ -212,12 +216,25 @@ return $default(_that.id,_that.senderId,_that.text,_that.sentAt);case _:
 @JsonSerializable()
 
 class _MessageModel implements MessageModel {
-  const _MessageModel({required this.id, required this.senderId, required this.text, @TimestampConverter() required this.sentAt});
+  const _MessageModel({required this.id, required this.senderId, required this.text, final  List<String> participantIds = const <String>[], @TimestampConverter() required this.sentAt}): _participantIds = participantIds;
   factory _MessageModel.fromJson(Map<String, dynamic> json) => _$MessageModelFromJson(json);
 
 @override final  String id;
 @override final  String senderId;
 @override final  String text;
+/// Mirrored from the parent conversation. Lets Firestore security
+/// rules verify membership without a cross-doc lookup, which avoids
+/// `getAfter` edge cases on first-message creation.
+ final  List<String> _participantIds;
+/// Mirrored from the parent conversation. Lets Firestore security
+/// rules verify membership without a cross-doc lookup, which avoids
+/// `getAfter` edge cases on first-message creation.
+@override@JsonKey() List<String> get participantIds {
+  if (_participantIds is EqualUnmodifiableListView) return _participantIds;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_participantIds);
+}
+
 @override@TimestampConverter() final  DateTime sentAt;
 
 /// Create a copy of MessageModel
@@ -233,16 +250,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageModel&&(identical(other.id, id) || other.id == id)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.text, text) || other.text == text)&&(identical(other.sentAt, sentAt) || other.sentAt == sentAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageModel&&(identical(other.id, id) || other.id == id)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.text, text) || other.text == text)&&const DeepCollectionEquality().equals(other._participantIds, _participantIds)&&(identical(other.sentAt, sentAt) || other.sentAt == sentAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,senderId,text,sentAt);
+int get hashCode => Object.hash(runtimeType,id,senderId,text,const DeepCollectionEquality().hash(_participantIds),sentAt);
 
 @override
 String toString() {
-  return 'MessageModel(id: $id, senderId: $senderId, text: $text, sentAt: $sentAt)';
+  return 'MessageModel(id: $id, senderId: $senderId, text: $text, participantIds: $participantIds, sentAt: $sentAt)';
 }
 
 
@@ -253,7 +270,7 @@ abstract mixin class _$MessageModelCopyWith<$Res> implements $MessageModelCopyWi
   factory _$MessageModelCopyWith(_MessageModel value, $Res Function(_MessageModel) _then) = __$MessageModelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String senderId, String text,@TimestampConverter() DateTime sentAt
+ String id, String senderId, String text, List<String> participantIds,@TimestampConverter() DateTime sentAt
 });
 
 
@@ -270,12 +287,13 @@ class __$MessageModelCopyWithImpl<$Res>
 
 /// Create a copy of MessageModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? senderId = null,Object? text = null,Object? sentAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? senderId = null,Object? text = null,Object? participantIds = null,Object? sentAt = null,}) {
   return _then(_MessageModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,senderId: null == senderId ? _self.senderId : senderId // ignore: cast_nullable_to_non_nullable
 as String,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
-as String,sentAt: null == sentAt ? _self.sentAt : sentAt // ignore: cast_nullable_to_non_nullable
+as String,participantIds: null == participantIds ? _self._participantIds : participantIds // ignore: cast_nullable_to_non_nullable
+as List<String>,sentAt: null == sentAt ? _self.sentAt : sentAt // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }

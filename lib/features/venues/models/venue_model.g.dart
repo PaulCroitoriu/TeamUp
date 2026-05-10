@@ -36,6 +36,11 @@ _VenueModel _$VenueModelFromJson(Map<String, dynamic> json) => _VenueModel(
   amenities:
       (json['amenities'] as List<dynamic>?)?.map((e) => e as String).toList() ??
       const [],
+  hasCafe: json['hasCafe'] as bool? ?? false,
+  hasParking: json['hasParking'] as bool? ?? false,
+  hasWifi: json['hasWifi'] as bool? ?? false,
+  hasShower: json['hasShower'] as bool? ?? true,
+  hasChangingRoom: json['hasChangingRoom'] as bool? ?? true,
   openingHours:
       (json['openingHours'] as Map<String, dynamic>?)?.map(
         (k, e) => MapEntry(k, DayHours.fromJson(e as Map<String, dynamic>)),
@@ -59,6 +64,11 @@ Map<String, dynamic> _$VenueModelToJson(
   'imageUrl': instance.imageUrl,
   'sports': instance.sports.map((e) => _$SportEnumMap[e]!).toList(),
   'amenities': instance.amenities,
+  'hasCafe': instance.hasCafe,
+  'hasParking': instance.hasParking,
+  'hasWifi': instance.hasWifi,
+  'hasShower': instance.hasShower,
+  'hasChangingRoom': instance.hasChangingRoom,
   'openingHours': instance.openingHours.map((k, e) => MapEntry(k, e.toJson())),
   'active': instance.active,
   'createdAt': const TimestampConverter().toJson(instance.createdAt),

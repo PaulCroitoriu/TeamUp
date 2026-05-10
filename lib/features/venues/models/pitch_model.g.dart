@@ -16,6 +16,7 @@ _PitchModel _$PitchModelFromJson(Map<String, dynamic> json) => _PitchModel(
   currency: json['currency'] as String? ?? 'RON',
   surface: json['surface'] as String?,
   indoor: json['indoor'] as bool? ?? false,
+  isIlluminated: json['isIlluminated'] as bool? ?? true,
   imageUrls:
       (json['imageUrls'] as List<dynamic>?)?.map((e) => e as String).toList() ??
       const [],
@@ -34,6 +35,7 @@ Map<String, dynamic> _$PitchModelToJson(_PitchModel instance) =>
       'currency': instance.currency,
       'surface': instance.surface,
       'indoor': instance.indoor,
+      'isIlluminated': instance.isIlluminated,
       'imageUrls': instance.imageUrls,
       'active': instance.active,
       'createdAt': const TimestampConverter().toJson(instance.createdAt),

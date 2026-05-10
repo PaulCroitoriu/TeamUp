@@ -26,13 +26,17 @@ abstract class PitchModel with _$PitchModel {
 
     /// Whether the pitch is covered / indoor.
     @Default(false) bool indoor,
+
+    /// Pitch lights for evening play. True by default since most modern
+    /// pitches are lit.
+    @Default(true) bool isIlluminated,
+
     @Default([]) List<String> imageUrls,
     @Default(true) bool active,
     @TimestampConverter() required DateTime createdAt,
   }) = _PitchModel;
 
-  factory PitchModel.fromJson(Map<String, dynamic> json) =>
-      _$PitchModelFromJson(json);
+  factory PitchModel.fromJson(Map<String, dynamic> json) => _$PitchModelFromJson(json);
 
   factory PitchModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data()! as Map<String, dynamic>;

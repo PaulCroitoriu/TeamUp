@@ -5,42 +5,45 @@ import 'package:teamup/core/enums/sport.dart';
 import 'package:teamup/features/venues/bloc/venue_bloc.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
 
-const _weekdays = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-];
+const _weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 String _capitalize(String s) => s[0].toUpperCase() + s.substring(1);
 
 class AddEditVenueDialog extends StatefulWidget {
-  const AddEditVenueDialog({
-    super.key,
-    required this.businessId,
-    this.venue,
-  });
+  const AddEditVenueDialog({super.key, required this.businessId, this.venue});
 
   final String businessId;
   final VenueModel? venue;
 
-  static Future<void> show(
-    BuildContext context, {
-    required String businessId,
-    required VenueBloc bloc,
-    VenueModel? venue,
-  }) {
+  static Future<void> show(BuildContext context, {required String businessId, required VenueBloc bloc, VenueModel? venue}) {
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+    final widget = BlocProvider.value(
+      value: bloc,
+      child: AddEditVenueDialog(businessId: businessId, venue: venue),
+    );
+    if (isMobile) {
+      return showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.92),
+            child: widget,
+          ),
+        ),
+      );
+    }
     return showDialog<void>(
       context: context,
-      builder: (_) => BlocProvider.value(
-        value: bloc,
-        child: AddEditVenueDialog(
-          businessId: businessId,
-          venue: venue,
-        ),
+      builder: (_) => Dialog(
+        clipBehavior: Clip.antiAlias,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
+        child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 600, maxHeight: 760), child: widget),
       ),
     );
   }
@@ -58,6 +61,11 @@ class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
   late final TextEditingController _descriptionCtrl;
   late List<Sport> _selectedSports;
   late Map<String, DayHours> _openingHours;
+  late bool _hasCafe;
+  late bool _hasParking;
+  late bool _hasWifi;
+  late bool _hasShower;
+  late bool _hasChangingRoom;
 
   bool get _isEditing => widget.venue != null;
 
@@ -71,10 +79,12 @@ class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
     _phoneCtrl = TextEditingController(text: v?.phone ?? '');
     _descriptionCtrl = TextEditingController(text: v?.description ?? '');
     _selectedSports = List<Sport>.from(v?.sports ?? []);
-    _openingHours = {
-      for (final day in _weekdays)
-        day: v?.openingHours[day] ?? const DayHours(),
-    };
+    _openingHours = {for (final day in _weekdays) day: v?.openingHours[day] ?? const DayHours()};
+    _hasCafe = v?.hasCafe ?? false;
+    _hasParking = v?.hasParking ?? false;
+    _hasWifi = v?.hasWifi ?? false;
+    _hasShower = v?.hasShower ?? true;
+    _hasChangingRoom = v?.hasChangingRoom ?? true;
   }
 
   @override
@@ -98,11 +108,14 @@ class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
       city: _cityCtrl.text.trim(),
       location: widget.venue?.location ?? const GeoPoint(0, 0),
       phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-      description: _descriptionCtrl.text.trim().isEmpty
-          ? null
-          : _descriptionCtrl.text.trim(),
+      description: _descriptionCtrl.text.trim().isEmpty ? null : _descriptionCtrl.text.trim(),
       sports: _selectedSports,
       openingHours: _openingHours,
+      hasCafe: _hasCafe,
+      hasParking: _hasParking,
+      hasWifi: _hasWifi,
+      hasShower: _hasShower,
+      hasChangingRoom: _hasChangingRoom,
       createdAt: widget.venue?.createdAt ?? DateTime.now(),
     );
 
@@ -119,42 +132,33 @@ class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+    final hPad = isMobile ? 20.0 : 40.0;
 
-    return Dialog(
-      clipBehavior: Clip.antiAlias,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 760),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Title ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(40, 28, 20, 20),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _isEditing ? 'Edit Venue' : 'New Venue',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
+    return Material(
+      color: theme.colorScheme.surface,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Title ──
+          Padding(
+            padding: EdgeInsets.fromLTRB(hPad, isMobile ? 4 : 28, 12, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(_isEditing ? 'Edit Venue' : 'New Venue', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                ),
+                IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close_rounded)),
+              ],
             ),
-            const Divider(height: 1),
+          ),
+          const Divider(height: 1),
 
-            // ── Form ──
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(40, 28, 40, 40),
-                child: Form(
+          // ── Form ──
+          Flexible(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(hPad, 20, hPad, 28),
+              child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -164,12 +168,8 @@ class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
                       controller: _nameCtrl,
                       textInputAction: TextInputAction.next,
                       textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        hintText: 'Venue name',
-                        prefixIcon: Icon(Icons.store_outlined),
-                      ),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Required' : null,
+                      decoration: const InputDecoration(hintText: 'Venue name', prefixIcon: Icon(Icons.store_outlined)),
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                     ),
                     const SizedBox(height: 16),
 
@@ -178,12 +178,8 @@ class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
                       controller: _addressCtrl,
                       textInputAction: TextInputAction.next,
                       textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        hintText: 'Address',
-                        prefixIcon: Icon(Icons.location_on_outlined),
-                      ),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Required' : null,
+                      decoration: const InputDecoration(hintText: 'Address', prefixIcon: Icon(Icons.location_on_outlined)),
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                     ),
                     const SizedBox(height: 16),
 
@@ -192,12 +188,8 @@ class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
                       controller: _cityCtrl,
                       textInputAction: TextInputAction.next,
                       textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        hintText: 'City',
-                        prefixIcon: Icon(Icons.location_city_outlined),
-                      ),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Required' : null,
+                      decoration: const InputDecoration(hintText: 'City', prefixIcon: Icon(Icons.location_city_outlined)),
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                     ),
                     const SizedBox(height: 16),
 
@@ -206,10 +198,7 @@ class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
                       controller: _phoneCtrl,
                       textInputAction: TextInputAction.next,
                       keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        hintText: 'Phone (optional)',
-                        prefixIcon: Icon(Icons.phone_outlined),
-                      ),
+                      decoration: const InputDecoration(hintText: 'Phone (optional)', prefixIcon: Icon(Icons.phone_outlined)),
                     ),
                     const SizedBox(height: 16),
 
@@ -228,12 +217,7 @@ class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
                     const SizedBox(height: 24),
 
                     // ── Sports ──
-                    Text(
-                      'Sports offered',
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    Text('Sports offered', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
@@ -257,50 +241,71 @@ class _AddEditVenueDialogState extends State<AddEditVenueDialog> {
                     ),
                     const SizedBox(height: 28),
 
-                    // ── Opening hours ──
-                    Text(
-                      'Opening hours',
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                    // ── Venue amenities ──
+                    Text('Amenities', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    SwitchListTile.adaptive(
+                      title: const Text('Café'),
+                      value: _hasCafe,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      onChanged: (v) => setState(() => _hasCafe = v),
                     ),
+                    SwitchListTile.adaptive(
+                      title: const Text('Parking'),
+                      value: _hasParking,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      onChanged: (v) => setState(() => _hasParking = v),
+                    ),
+                    SwitchListTile.adaptive(
+                      title: const Text('Wi-Fi'),
+                      value: _hasWifi,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      onChanged: (v) => setState(() => _hasWifi = v),
+                    ),
+                    SwitchListTile.adaptive(
+                      title: const Text('Showers'),
+                      value: _hasShower,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      onChanged: (v) => setState(() => _hasShower = v),
+                    ),
+                    SwitchListTile.adaptive(
+                      title: const Text('Changing room'),
+                      value: _hasChangingRoom,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      onChanged: (v) => setState(() => _hasChangingRoom = v),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ── Opening hours ──
+                    Text('Opening hours', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 12),
                     ..._weekdays.map((day) {
                       final hours = _openingHours[day]!;
-                      return _DayHoursRow(
-                        day: day,
-                        hours: hours,
-                        onChanged: (updated) =>
-                            setState(() => _openingHours[day] = updated),
-                      );
+                      return _DayHoursRow(day: day, hours: hours, onChanged: (updated) => setState(() => _openingHours[day] = updated));
                     }),
                     const SizedBox(height: 32),
 
                     // ── Submit ──
-                    ElevatedButton(
-                      onPressed: _submit,
-                      child:
-                          Text(_isEditing ? 'Save changes' : 'Create venue'),
-                    ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
+                    ElevatedButton(onPressed: _submit, child: Text(_isEditing ? 'Save changes' : 'Create venue')),
+                    const SizedBox(height: 24),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _DayHoursRow extends StatelessWidget {
-  const _DayHoursRow({
-    required this.day,
-    required this.hours,
-    required this.onChanged,
-  });
+  const _DayHoursRow({required this.day, required this.hours, required this.onChanged});
   final String day;
   final DayHours hours;
   final ValueChanged<DayHours> onChanged;
@@ -309,15 +314,11 @@ class _DayHoursRow extends StatelessWidget {
     final parts = initial.split(':');
     return showTimePicker(
       context: context,
-      initialTime: TimeOfDay(
-        hour: int.parse(parts[0]),
-        minute: int.parse(parts[1]),
-      ),
+      initialTime: TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1])),
     );
   }
 
-  String _fmt(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  String _fmt(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
@@ -331,29 +332,19 @@ class _DayHoursRow extends StatelessWidget {
           // Day label
           SizedBox(
             width: 90,
-            child: Text(
-              _capitalize(day),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            child: Text(_capitalize(day), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
           ),
           // Closed toggle
           SizedBox(
             width: 70,
             child: TextButton(
-              onPressed: () =>
-                  onChanged(hours.copyWith(closed: !hours.closed)),
+              onPressed: () => onChanged(hours.copyWith(closed: !hours.closed)),
               style: TextButton.styleFrom(
                 padding: EdgeInsets.zero,
                 minimumSize: const Size(0, 36),
-                foregroundColor:
-                    hours.closed ? colors.error : colors.onSurface.withAlpha(100),
+                foregroundColor: hours.closed ? colors.error : colors.onSurface.withAlpha(100),
               ),
-              child: Text(
-                hours.closed ? 'Closed' : 'Open',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
+              child: Text(hours.closed ? 'Closed' : 'Open', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
             ),
           ),
           const SizedBox(width: 8),
@@ -368,10 +359,7 @@ class _DayHoursRow extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Text(
-                '–',
-                style: TextStyle(color: colors.onSurface.withAlpha(100)),
-              ),
+              child: Text('–', style: TextStyle(color: colors.onSurface.withAlpha(100))),
             ),
             _TimeChip(
               label: hours.close,
@@ -406,11 +394,7 @@ class _TimeChip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: colors.onSurface,
-          ),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.onSurface),
         ),
       ),
     );

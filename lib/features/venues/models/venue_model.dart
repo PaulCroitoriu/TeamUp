@@ -8,14 +8,9 @@ part 'venue_model.g.dart';
 
 @freezed
 abstract class DayHours with _$DayHours {
-  const factory DayHours({
-    @Default('09:00') String open,
-    @Default('22:00') String close,
-    @Default(false) bool closed,
-  }) = _DayHours;
+  const factory DayHours({@Default('09:00') String open, @Default('22:00') String close, @Default(false) bool closed}) = _DayHours;
 
-  factory DayHours.fromJson(Map<String, dynamic> json) =>
-      _$DayHoursFromJson(json);
+  factory DayHours.fromJson(Map<String, dynamic> json) => _$DayHoursFromJson(json);
 }
 
 @freezed
@@ -32,13 +27,21 @@ abstract class VenueModel with _$VenueModel {
     String? imageUrl,
     @Default([]) List<Sport> sports,
     @Default([]) List<String> amenities,
+
+    /// Venue-shared facilities. These apply to every pitch at the venue;
+    /// per-pitch flags (illumination, indoor) live on `PitchModel` instead.
+    @Default(false) bool hasCafe,
+    @Default(false) bool hasParking,
+    @Default(false) bool hasWifi,
+    @Default(true) bool hasShower,
+    @Default(true) bool hasChangingRoom,
+
     @Default({}) Map<String, DayHours> openingHours,
     @Default(true) bool active,
     @TimestampConverter() required DateTime createdAt,
   }) = _VenueModel;
 
-  factory VenueModel.fromJson(Map<String, dynamic> json) =>
-      _$VenueModelFromJson(json);
+  factory VenueModel.fromJson(Map<String, dynamic> json) => _$VenueModelFromJson(json);
 
   factory VenueModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data()! as Map<String, dynamic>;
@@ -53,17 +56,11 @@ class GeoPointConverter implements JsonConverter<GeoPoint, dynamic> {
   GeoPoint fromJson(dynamic json) {
     if (json is GeoPoint) return json;
     if (json is Map<String, dynamic>) {
-      return GeoPoint(
-        (json['latitude'] as num).toDouble(),
-        (json['longitude'] as num).toDouble(),
-      );
+      return GeoPoint((json['latitude'] as num).toDouble(), (json['longitude'] as num).toDouble());
     }
     return const GeoPoint(0, 0);
   }
 
   @override
-  Map<String, dynamic> toJson(GeoPoint geoPoint) => {
-    'latitude': geoPoint.latitude,
-    'longitude': geoPoint.longitude,
-  };
+  Map<String, dynamic> toJson(GeoPoint geoPoint) => {'latitude': geoPoint.latitude, 'longitude': geoPoint.longitude};
 }

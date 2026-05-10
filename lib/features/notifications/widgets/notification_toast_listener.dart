@@ -9,6 +9,21 @@ import 'package:teamup/features/notifications/models/notification_model.dart';
 
 final _log = Logger();
 
+/// Tracks which booking the user is currently viewing so the toast listener
+/// can suppress message toasts for that booking — they're already in the
+/// conversation, no need to interrupt them. Booking detail screens set this
+/// on init and clear on dispose.
+class ActiveBookingScope {
+  ActiveBookingScope._();
+
+  static final ValueNotifier<String?> activeId = ValueNotifier<String?>(null);
+
+  static void enter(String bookingId) => activeId.value = bookingId;
+  static void exit(String bookingId) {
+    if (activeId.value == bookingId) activeId.value = null;
+  }
+}
+
 /// Subscribes to the current user's notifications stream while mounted and
 /// shows an in-app SnackBar for any notification created after the listener
 /// started. Used in place of system push for the foreground case so the
@@ -62,6 +77,10 @@ class _NotificationToastListenerState extends State<NotificationToastListener> {
       }
       _shown.add(n.id);
       if (!mounted) return;
+      // Suppress message toasts for the booking the user is already viewing.
+      if (n.type == NotificationType.newMessage && n.bookingId != null && ActiveBookingScope.activeId.value == n.bookingId) {
+        continue;
+      }
       _show(n);
     }
   }

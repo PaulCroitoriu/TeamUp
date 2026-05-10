@@ -7,7 +7,7 @@ class AppTheme {
   // Light
   static const _lightScaffold = Color(0xFFF7F8F9); // N20 sunken
   static const _lightSurface = Color(0xFFFFFFFF); // N0 raised
-  static const _lightSelected = Color(0xFFE9F2FF); // B50
+  static const _lightSelected = Color(0xFFDCFCEC); // G50 selected tint
   static const _lightBorder = Color(0xFFDFE1E6); // N40
   static const _lightBorderStrong = Color(0xFFC1C7D0); // N60
   static const _lightText = Color(0xFF172B4D); // N800 primary text
@@ -19,7 +19,7 @@ class AppTheme {
   static const _darkScaffold = Color(0xFF1D2125); // DN20 body
   static const _darkSurface = Color(0xFF22272B); // DN50 raised
   static const _darkSurfaceOverlay = Color(0xFF282E33); // DN70
-  static const _darkSelected = Color(0xFF1C2B41); // B900 selected
+  static const _darkSelected = Color(0xFF1B3A29); // G900 selected
   static const _darkBorder = Color(0xFF2C333A); // DN100
   static const _darkBorderStrong = Color(0xFF454F59); // DN300
   static const _darkText = Color(0xFFB6C2CF); // DN900 primary text
@@ -27,11 +27,11 @@ class AppTheme {
   static const _darkPlaceholder = Color(0xFF7D8691); // DN500
   static const _darkIcon = Color(0xFF9FADBC); // DN700
 
-  // Brand
-  static const _brand = Color(0xFF0C66E4); // B400 primary
-  static const _brandDark = Color(0xFF579DFF); // B200 dark-mode brand
-  static const _success = Color(0xFF1F845A); // G500
-  static const _successDark = Color(0xFF7EE2B8); // G300
+  // Brand (greenish)
+  static const _brand = Color(0xFF1F845A); // G500 primary
+  static const _brandDark = Color(0xFF7EE2B8); // G300 dark-mode brand
+  static const _success = Color(0xFF22A06B); // G400 — slightly brighter than brand
+  static const _successDark = Color(0xFF94F0CB); // G200
   static const _errorLight = Color(0xFFC9372C); // R500
   static const _errorDark = Color(0xFFF87168); // R300
 
@@ -126,16 +126,8 @@ class AppTheme {
       backgroundColor: _lightSurface,
       selectedColor: _lightSelected,
       checkmarkColor: _brand,
-      labelStyle: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: _lightText,
-      ),
-      secondaryLabelStyle: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: _brand,
-      ),
+      labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _lightText),
+      secondaryLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _brand),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       side: const BorderSide(color: _lightBorderStrong),
     ),
@@ -238,16 +230,8 @@ class AppTheme {
       backgroundColor: _darkSurfaceOverlay,
       selectedColor: _darkSelected,
       checkmarkColor: _brandDark,
-      labelStyle: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: _darkText,
-      ),
-      secondaryLabelStyle: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: _brandDark,
-      ),
+      labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _darkText),
+      secondaryLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _brandDark),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       side: const BorderSide(color: _darkBorderStrong),
     ),

@@ -18,9 +18,34 @@ class AddEditPitchDialog extends StatefulWidget {
   final PitchModel? pitch;
 
   static Future<void> show(BuildContext context, {required String venueId, PitchModel? pitch}) {
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+    if (isMobile) {
+      return showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.92),
+            child: AddEditPitchDialog(venueId: venueId, pitch: pitch),
+          ),
+        ),
+      );
+    }
     return showDialog<void>(
       context: context,
-      builder: (_) => AddEditPitchDialog(venueId: venueId, pitch: pitch),
+      builder: (_) => Dialog(
+        clipBehavior: Clip.antiAlias,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 760),
+          child: AddEditPitchDialog(venueId: venueId, pitch: pitch),
+        ),
+      ),
     );
   }
 
@@ -36,6 +61,7 @@ class _AddEditPitchDialogState extends State<AddEditPitchDialog> {
   late Sport _sport;
   late String? _surface;
   late bool _indoor;
+  late bool _isIlluminated;
   late bool _active;
 
   /// Already-uploaded URLs (from existing pitch).
@@ -66,6 +92,7 @@ class _AddEditPitchDialogState extends State<AddEditPitchDialog> {
     _sport = p?.sport ?? Sport.football;
     _surface = p?.surface;
     _indoor = p?.indoor ?? false;
+    _isIlluminated = p?.isIlluminated ?? true;
     _active = p?.active ?? true;
     _existingUrls = List<String>.from(p?.imageUrls ?? []);
   }
@@ -150,6 +177,7 @@ class _AddEditPitchDialogState extends State<AddEditPitchDialog> {
             pricePerHour: int.parse(_priceCtrl.text.trim()) * 100,
             surface: _surface,
             indoor: _indoor,
+            isIlluminated: _isIlluminated,
             active: _active,
             imageUrls: [],
             createdAt: DateTime.now(),
@@ -174,6 +202,7 @@ class _AddEditPitchDialogState extends State<AddEditPitchDialog> {
           pricePerHour: int.parse(_priceCtrl.text.trim()) * 100,
           surface: _surface,
           indoor: _indoor,
+          isIlluminated: _isIlluminated,
           active: _active,
           imageUrls: allUrls,
           createdAt: widget.pitch?.createdAt ?? DateTime.now(),
@@ -185,9 +214,7 @@ class _AddEditPitchDialogState extends State<AddEditPitchDialog> {
     } catch (e, stack) {
       _log.e('Submit failed', error: e, stackTrace: stack);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -201,33 +228,32 @@ class _AddEditPitchDialogState extends State<AddEditPitchDialog> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    return Dialog(
-      clipBehavior: Clip.antiAlias,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 760),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Title ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(40, 28, 20, 20),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(_isEditing ? 'Edit Pitch' : 'New Pitch', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-                  ),
-                  IconButton(onPressed: _uploading ? null : () => Navigator.of(context).pop(), icon: const Icon(Icons.close_rounded)),
-                ],
-              ),
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+    final hPad = isMobile ? 20.0 : 40.0;
+    return Material(
+      color: theme.colorScheme.surface,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Title ──
+          Padding(
+            padding: EdgeInsets.fromLTRB(hPad, isMobile ? 4 : 28, 12, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(_isEditing ? 'Edit Pitch' : 'New Pitch', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                ),
+                IconButton(onPressed: _uploading ? null : () => Navigator.of(context).pop(), icon: const Icon(Icons.close_rounded)),
+              ],
             ),
-            const Divider(height: 1),
+          ),
+          const Divider(height: 1),
 
-            // ── Form ──
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(40, 28, 40, 40),
-                child: Form(
+          // ── Form ──
+          Flexible(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(hPad, 20, hPad, 28),
+              child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -358,7 +384,7 @@ class _AddEditPitchDialogState extends State<AddEditPitchDialog> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ── Indoor toggle ──
+                    // ── Pitch features ──
                     SwitchListTile.adaptive(
                       title: const Text('Indoor / covered'),
                       value: _indoor,
@@ -366,6 +392,18 @@ class _AddEditPitchDialogState extends State<AddEditPitchDialog> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       onChanged: (v) => setState(() => _indoor = v),
+                    ),
+                    SwitchListTile.adaptive(
+                      title: const Text('Floodlights'),
+                      subtitle: Text(
+                        _isIlluminated ? 'Available for evening play' : 'No lights at this pitch',
+                        style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(100)),
+                      ),
+                      value: _isIlluminated,
+                      activeTrackColor: colors.secondary,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      onChanged: (v) => setState(() => _isIlluminated = v),
                     ),
                     const SizedBox(height: 4),
 
@@ -391,14 +429,13 @@ class _AddEditPitchDialogState extends State<AddEditPitchDialog> {
                           ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                           : Text(_isEditing ? 'Save changes' : 'Add pitch'),
                     ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
+                    const SizedBox(height: 24),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

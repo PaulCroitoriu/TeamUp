@@ -19,9 +19,14 @@ class MessagingService {
     return _convRef.doc(conversationId).snapshots().map((doc) => doc.exists ? ConversationModel.fromFirestore(doc) : null);
   }
 
-  /// Stream messages oldest → newest for chronological rendering.
-  Stream<List<MessageModel>> streamMessages(String conversationId) {
-    return _msgRef(conversationId).orderBy('sentAt').snapshots().map((snap) => snap.docs.map(MessageModel.fromFirestore).toList());
+  /// Stream messages oldest → newest for chronological rendering. The
+  /// `arrayContains` filter is required so Firestore security rules can
+  /// statically prove the query stays within docs the user is allowed to
+  /// read (we mirror `participantIds` onto each message).
+  Stream<List<MessageModel>> streamMessages({required String conversationId, required String userId}) {
+    return _msgRef(
+      conversationId,
+    ).where('participantIds', arrayContains: userId).orderBy('sentAt').snapshots().map((snap) => snap.docs.map(MessageModel.fromFirestore).toList());
   }
 
   /// Send a message in a booking conversation. Creates the conversation
@@ -38,7 +43,7 @@ class MessagingService {
     final msgRef = _msgRef(convId).doc();
     final now = DateTime.now();
 
-    final message = MessageModel(id: msgRef.id, senderId: senderId, text: text, sentAt: now);
+    final message = MessageModel(id: msgRef.id, senderId: senderId, text: text, participantIds: participantIds, sentAt: now);
 
     await _firestore.runTransaction((txn) async {
       final convSnap = await txn.get(convRef);

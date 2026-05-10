@@ -11,6 +11,11 @@ _MessageModel _$MessageModelFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       senderId: json['senderId'] as String,
       text: json['text'] as String,
+      participantIds:
+          (json['participantIds'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const <String>[],
       sentAt: const TimestampConverter().fromJson(json['sentAt']),
     );
 
@@ -19,5 +24,6 @@ Map<String, dynamic> _$MessageModelToJson(_MessageModel instance) =>
       'id': instance.id,
       'senderId': instance.senderId,
       'text': instance.text,
+      'participantIds': instance.participantIds,
       'sentAt': const TimestampConverter().toJson(instance.sentAt),
     };

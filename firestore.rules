@@ -79,7 +79,13 @@ service cloud.firestore {
 
     // ── Conversations ──
     match /conversations/{conversationId} {
-      allow read: if request.auth != null
+      // `resource == null` allows reading a non-existent doc (the
+      // transactional get() in MessagingService.sendBookingMessage hits
+      // this on the first message of a booking).
+      allow get: if request.auth != null
+        && (resource == null
+            || request.auth.uid in resource.data.participantIds);
+      allow list: if request.auth != null
         && request.auth.uid in resource.data.participantIds;
       allow create: if request.auth != null
         && request.auth.uid in request.resource.data.participantIds;
@@ -88,13 +94,14 @@ service cloud.firestore {
         && request.auth.uid in resource.data.participantIds;
 
       match /messages/{messageId} {
+        // Membership is mirrored on each message doc, so no cross-doc
+        // lookup is needed (avoids `getAfter` edge cases when the parent
+        // conversation is being created in the same transaction).
         allow read: if request.auth != null
-          && request.auth.uid in get(/databases/teamup-db/documents/conversations/$(conversationId)).data.participantIds;
-        // `getAfter` reads the post-transaction state, so this rule passes
-        // even when the conversation is being created in the same write
-        // (first-message scenario).
+          && request.auth.uid in resource.data.participantIds;
         allow create: if request.auth != null
-          && request.auth.uid in getAfter(/databases/teamup-db/documents/conversations/$(conversationId)).data.participantIds;
+          && request.auth.uid in request.resource.data.participantIds
+          && request.resource.data.senderId == request.auth.uid;
       }
     }
   }
