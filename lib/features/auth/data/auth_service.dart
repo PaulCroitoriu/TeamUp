@@ -5,36 +5,22 @@ import 'package:teamup/features/auth/models/business_model.dart';
 import 'package:teamup/features/auth/models/user_model.dart';
 
 class AuthService {
-  AuthService({
-    FirebaseAuth? auth,
-    FirebaseFirestore? firestore,
-  })  : _auth = auth ?? FirebaseAuth.instance,
-        _firestore = firestore ?? db;
+  AuthService({FirebaseAuth? auth, FirebaseFirestore? firestore}) : _auth = auth ?? FirebaseAuth.instance, _firestore = firestore ?? db;
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
 
-  CollectionReference<Map<String, dynamic>> get _usersRef =>
-      _firestore.collection('users');
+  CollectionReference<Map<String, dynamic>> get _usersRef => _firestore.collection('users');
 
-  CollectionReference<Map<String, dynamic>> get _businessesRef =>
-      _firestore.collection('businesses');
+  CollectionReference<Map<String, dynamic>> get _businessesRef => _firestore.collection('businesses');
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   User? get currentUser => _auth.currentUser;
 
   /// Register a player account.
-  Future<UserModel> signUpPlayer({
-    required String email,
-    required String password,
-    required String firstName,
-    required String lastName,
-  }) async {
-    final cred = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+  Future<UserModel> signUpPlayer({required String email, required String password, required String firstName, required String lastName}) async {
+    final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
     await cred.user!.updateDisplayName('$firstName $lastName');
 
     final user = UserModel(
@@ -59,19 +45,11 @@ class AuthService {
     required String lastName,
     required String businessName,
   }) async {
-    final cred = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
     await cred.user!.updateDisplayName('$firstName $lastName');
 
     final businessDoc = _businessesRef.doc();
-    final business = BusinessModel(
-      id: businessDoc.id,
-      name: businessName,
-      ownerUid: cred.user!.uid,
-      createdAt: DateTime.now(),
-    );
+    final business = BusinessModel(id: businessDoc.id, name: businessName, ownerUid: cred.user!.uid, createdAt: DateTime.now());
 
     final user = UserModel(
       uid: cred.user!.uid,
@@ -91,14 +69,8 @@ class AuthService {
     return user;
   }
 
-  Future<UserModel> signIn({
-    required String email,
-    required String password,
-  }) async {
-    final cred = await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+  Future<UserModel> signIn({required String email, required String password}) async {
+    final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
     return getUserProfile(cred.user!.uid);
   }
 
@@ -108,6 +80,14 @@ class AuthService {
       throw Exception('User profile not found for uid: $uid');
     }
     return UserModel.fromFirestore(doc);
+  }
+
+  Future<BusinessModel> getBusiness(String id) async {
+    final doc = await _businessesRef.doc(id).get();
+    if (!doc.exists) {
+      throw Exception('Business not found: $id');
+    }
+    return BusinessModel.fromFirestore(doc);
   }
 
   Future<void> signOut() async {
