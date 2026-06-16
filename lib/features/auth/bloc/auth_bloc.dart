@@ -17,6 +17,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<_SignUpRequested>(_onSignUp);
     on<_SignInRequested>(_onSignIn);
     on<_SignOutRequested>(_onSignOut);
+    on<_ProfileUpdated>(_onProfileUpdated);
+  }
+
+  void _onProfileUpdated(_ProfileUpdated event, Emitter<AuthState> emit) {
+    // Only refresh while signed in; ignore a late update after sign-out.
+    if (state is _Authenticated) emit(AuthState.authenticated(event.user));
   }
 
   final AuthService _authService;

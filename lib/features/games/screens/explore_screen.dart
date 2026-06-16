@@ -10,6 +10,7 @@ import 'package:teamup/core/theme/sport_tile.dart';
 import 'package:teamup/features/bookings/data/booking_service.dart';
 import 'package:teamup/features/bookings/screens/pitch_booking_screen.dart';
 import 'package:teamup/features/games/data/game_service.dart';
+import 'package:teamup/features/games/screens/open_games_view.dart';
 import 'package:teamup/features/venues/data/venue_service.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
@@ -39,6 +40,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Set<DateTime> _filterDates = {};
   Set<int> _filterHours = {};
   bool _openSpotsOnly = false;
+
+  // Browse pitches to book, or open games that need players.
+  bool _gamesMode = false;
 
   Set<String>? _availablePitchIds;
   bool _availabilityLoading = false;
@@ -250,7 +254,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       filterCount: _filterCount,
                       onSearchChanged: (q) => setState(() => _search = q),
                     ),
-                    if (_hasAnyFilter)
+                    _ModeToggle(
+                      gamesMode: _gamesMode,
+                      onChanged: (v) => setState(() => _gamesMode = v),
+                    ),
+                    if (!_gamesMode && _hasAnyFilter)
                       _ActiveFiltersStrip(
                         city: _city,
                         dates: _filterDates,
@@ -278,7 +286,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         },
                       ),
                     Expanded(
-                      child: StreamBuilder<List<PitchModel>>(
+                      child: _gamesMode
+                          ? OpenGamesView(sports: _sports, city: _city, search: _search)
+                          : StreamBuilder<List<PitchModel>>(
                         stream: _venueService.streamPitchesAcrossVenues(),
                         builder: (context, pitchSnap) {
                           if (pitchSnap.connectionState ==
@@ -319,6 +329,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       false) ||
                                   (v?.city.toLowerCase().contains(q) ?? false);
                             }).toList();
+                          }
+
+                          if (_openSpotsOnly) {
+                            pitches = pitches
+                                .where((p) => _openPitchIds.contains(p.id))
+                                .toList();
                           }
 
                           if (_hasAvailabilityFilter &&
@@ -401,6 +417,85 @@ double _pageGutter(BuildContext context) {
   if (w >= 1100) return 32;
   if (w >= 700) return 16;
   return 0;
+}
+
+// ─── Pitches / Open games toggle ────────────────────────────
+
+class _ModeToggle extends StatelessWidget {
+  const _ModeToggle({required this.gamesMode, required this.onChanged});
+  final bool gamesMode;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: TUColors.surface2,
+          borderRadius: BorderRadius.circular(TUColors.rPill),
+          border: Border.all(color: TUColors.line),
+        ),
+        child: Row(
+          children: [
+            _ModeSegment(
+              icon: Icons.stadium_outlined,
+              label: 'Pitches',
+              selected: !gamesMode,
+              onTap: () => onChanged(false),
+            ),
+            _ModeSegment(
+              icon: Icons.bolt_rounded,
+              label: 'Open games',
+              selected: gamesMode,
+              onTap: () => onChanged(true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeSegment extends StatelessWidget {
+  const _ModeSegment({required this.icon, required this.label, required this.selected, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Material(
+        color: selected ? TUColors.brand : Colors.transparent,
+        borderRadius: BorderRadius.circular(TUColors.rPill),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(TUColors.rPill),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 17, color: selected ? Colors.white : TUColors.ink2),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : TUColors.ink2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─── Top bar (sport dropdown + filters button) ──────────────
@@ -1514,48 +1609,46 @@ class _FilterSheetState extends State<_FilterSheet> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    // "only open spots" — disabled until the games feature lands.
-                    Opacity(
-                      opacity: 0.55,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: TUColors.surface2,
-                          borderRadius: BorderRadius.circular(TUColors.rMd),
-                          border: Border.all(color: TUColors.line),
-                        ),
-                        child: Row(
-                          children: [
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Only show open spots',
-                                    style: TextStyle(
-                                      fontSize: 14.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: TUColors.ink,
-                                    ),
+                    // Limit the pitch list to pitches that currently have an
+                    // open game looking for players.
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: TUColors.surface2,
+                        borderRadius: BorderRadius.circular(TUColors.rMd),
+                        border: Border.all(color: TUColors.line),
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Only show open spots',
+                                  style: TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: TUColors.ink,
                                   ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    'Coming with the games feature',
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w500,
-                                      color: TUColors.ink3,
-                                    ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Pitches with a game that needs players',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: TUColors.ink3,
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                            Switch.adaptive(
-                              value: _openSpotsOnly,
-                              onChanged: null,
-                            ),
-                          ],
-                        ),
+                          ),
+                          Switch.adaptive(
+                            value: _openSpotsOnly,
+                            onChanged: (v) => setState(() => _openSpotsOnly = v),
+                          ),
+                        ],
                       ),
                     ),
                   ],

@@ -6,7 +6,6 @@ import 'package:logger/logger.dart';
 import 'package:teamup/core/enums/booking_status.dart';
 import 'package:teamup/core/enums/game_status.dart';
 import 'package:teamup/core/enums/join_request_status.dart';
-import 'package:teamup/core/enums/payment_method.dart';
 import 'package:teamup/core/enums/notification_type.dart';
 import 'package:teamup/core/theme/design_tokens.dart';
 import 'package:teamup/core/theme/sport_tile.dart';
@@ -26,6 +25,10 @@ import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
 
 final _log = Logger();
+
+/// How many weeks ahead a "repeats weekly" booking materialises, mirroring the
+/// owner-side manual booking. A future job rolls the series forward.
+const _kRecurringWeeks = 52;
 
 const _weekdayKeys = [
   'monday',
@@ -199,7 +202,7 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
           day: _selectedDay,
           joinGame: joinGame,
           payOnly: true,
-          onSubmit: (cfg) => _confirmJoin(joinGame, userId, cfg.method),
+          onSubmit: (_) => _confirmJoin(joinGame, userId),
         ),
       );
       return;
@@ -263,8 +266,9 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
         createdAt: DateTime.now(),
       );
 
-      // Open game → write the game + its reserving booking atomically; private
-      // booking → just the booking.
+      // Open game → write the game + its reserving booking atomically;
+      // recurring private → materialise a weekly series; one-off private → a
+      // single booking.
       final BookingModel booking;
       if (cfg.open) {
         final (_, b) = await _gameService.createOpenGame(
@@ -288,6 +292,18 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
           ),
         );
         booking = b;
+      } else if (cfg.recurring) {
+        final recurrenceId = 'rec_${DateTime.now().microsecondsSinceEpoch}_$userId';
+        final series = [
+          for (var w = 0; w < _kRecurringWeeks; w++)
+            draft.copyWith(
+              startTime: slot.start.add(Duration(days: 7 * w)),
+              endTime: slot.end.add(Duration(days: 7 * w)),
+              recurring: true,
+            ),
+        ];
+        final created = await _bookingService.createRecurringBookings(series, recurrenceId: recurrenceId);
+        booking = created.first;
       } else {
         booking = await _bookingService.createBooking(draft);
       }
@@ -378,20 +394,13 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
     }
   }
 
-  /// Pay after approval to confirm the spot.
-  Future<String?> _confirmJoin(
-    GameModel game,
-    String userId,
-    PaymentMethod method,
-  ) async {
+  /// Confirm the spot after approval (no in-app payment — the joiner settles
+  /// their share with the organiser).
+  Future<String?> _confirmJoin(GameModel game, String userId) async {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _booking = true);
     try {
-      await _gameService.confirmJoin(
-        gameId: game.id,
-        userId: userId,
-        method: method,
-      );
+      await _gameService.confirmJoin(gameId: game.id, userId: userId);
       return game.id;
     } on GameJoinException catch (e, st) {
       _log.w('Confirm join failed', error: e, stackTrace: st);
@@ -871,7 +880,7 @@ class _ContinueBar extends StatelessWidget {
                     children: [
                       Text(
                         payMode
-                            ? 'Pay & join'
+                            ? 'Confirm spot'
                             : isJoin
                             ? (requestNeeded ? 'Request to join' : 'Join game')
                             : 'Continue · $price',

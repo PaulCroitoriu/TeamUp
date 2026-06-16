@@ -47,6 +47,10 @@ abstract class BookingModel with _$BookingModel {
     /// us delete or modify the series as a unit later.
     String? recurrenceId,
 
+    /// True for bookings that are part of a weekly repeat. A future job
+    /// uses this to roll the series forward and collect payment.
+    @Default(false) bool recurring,
+
     String? notes,
 
     /// Set when the booking flips to confirmed (either by payment or by

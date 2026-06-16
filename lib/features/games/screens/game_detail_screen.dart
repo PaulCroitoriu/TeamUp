@@ -1,17 +1,21 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import 'package:teamup/core/enums/game_status.dart';
 import 'package:teamup/core/enums/join_request_status.dart';
-import 'package:teamup/core/enums/payment_method.dart';
 import 'package:teamup/core/theme/design_tokens.dart';
 import 'package:teamup/core/theme/sport_tile.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
+import 'package:teamup/features/auth/data/auth_service.dart';
+import 'package:teamup/features/auth/models/user_model.dart';
+import 'package:teamup/features/auth/screens/player_profile_screen.dart';
 import 'package:teamup/features/bookings/screens/booking_detail_screen.dart';
 import 'package:teamup/features/games/data/game_service.dart';
 import 'package:teamup/features/games/models/game_model.dart';
 import 'package:teamup/features/games/models/join_request_model.dart';
 import 'package:teamup/features/messaging/screens/game_chat_screen.dart';
+import 'package:teamup/features/venues/data/venue_service.dart';
 import 'package:teamup/shared/widgets/adaptive_sheet.dart';
 
 final _log = Logger();
@@ -54,10 +58,10 @@ class GameDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
             children: [
               _HeaderCard(game: game, perPlayer: perPlayer),
-              // ── your request status (non-members who requested) ──
+              // ── join / request action + your request status (non-members) ──
               if (!isHost && !isMember && userId != null) ...[
                 const SizedBox(height: 14),
-                _MyRequestBanner(game: game, userId: userId, service: service, perPlayer: perPlayer),
+                _JoinSection(game: game, userId: userId, service: service, perPlayer: perPlayer),
               ],
               const SizedBox(height: 14),
               // ── actions: message the team · manage booking ──
@@ -93,8 +97,12 @@ class GameDetailScreen extends StatelessWidget {
                   ],
                 ],
               ),
+              if (isHost) ...[
+                const SizedBox(height: 12),
+                _EditGameButton(game: game, service: service),
+              ],
               const SizedBox(height: 20),
-              _RosterCard(game: game),
+              _RosterCard(game: game, isHost: isHost, service: service),
               if (isMember && !isHost) ...[
                 const SizedBox(height: 14),
                 _LeaveButton(gameId: game.id, userId: userId, service: service),
@@ -146,7 +154,9 @@ class _HeaderCard extends StatelessWidget {
                   children: [
                     Text(game.sport.label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: TUColors.ink)),
                     const SizedBox(width: 8),
-                    if (full)
+                    if (game.status == GameStatus.private)
+                      const _Pill(label: 'Private', bg: TUColors.surface2, fg: TUColors.ink2)
+                    else if (full)
                       const _Pill(label: 'Full', bg: TUColors.busyBg, fg: TUColors.ink3)
                     else
                       const _Pill(label: 'Open', bg: TUColors.lime, fg: TUColors.brand900),
@@ -174,13 +184,44 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
-class _RosterCard extends StatelessWidget {
-  const _RosterCard({required this.game});
+/// Roster with the real players who've joined (avatar + name, host badged) and
+/// a chip for each remaining open spot. Names are looked up once per roster
+/// change so the card doesn't refetch on every game snapshot.
+class _RosterCard extends StatefulWidget {
+  const _RosterCard({required this.game, required this.isHost, required this.service});
   final GameModel game;
+  final bool isHost;
+  final GameService service;
+
+  @override
+  State<_RosterCard> createState() => _RosterCardState();
+}
+
+class _RosterCardState extends State<_RosterCard> {
+  final _authService = AuthService();
+  late Future<List<UserModel>> _players;
+
+  @override
+  void initState() {
+    super.initState();
+    _players = _authService.getUsersByIds(widget.game.playerIds);
+  }
+
+  @override
+  void didUpdateWidget(covariant _RosterCard old) {
+    super.didUpdateWidget(old);
+    if (!listEquals(old.game.playerIds, widget.game.playerIds)) {
+      _players = _authService.getUsersByIds(widget.game.playerIds);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final game = widget.game;
     final needs = game.spotsOpen;
+    // Spots the host reserved for friends joining off-app (filled beyond the
+    // players actually in the app).
+    final guests = (game.spotsFilled - game.playerIds.length).clamp(0, game.capacity);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -201,24 +242,145 @@ class _RosterCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
+          const SizedBox(height: 13),
+          FutureBuilder<List<UserModel>>(
+            future: _players,
+            builder: (context, snap) {
+              final byId = {for (final u in snap.data ?? const <UserModel>[]) u.uid: u};
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final id in game.playerIds)
+                    _PlayerChip(
+                      user: byId[id],
+                      isHost: id == game.hostId,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => PlayerProfileScreen(
+                            userId: id,
+                            // Host can remove any joined player except themselves.
+                            onRemove: (widget.isHost && id != game.hostId)
+                                ? () => widget.service.removePlayer(gameId: game.id, hostId: game.hostId, userId: id)
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                  for (var i = 0; i < guests; i++) const _GuestChip(),
+                  for (var i = 0; i < needs; i++) const _OpenSlotChip(),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A joined player: avatar (photo or initials) + short name, with a Host badge
+/// for the organiser. Falls back to a neutral chip while the name loads.
+class _PlayerChip extends StatelessWidget {
+  const _PlayerChip({required this.user, required this.isHost, this.onTap});
+  final UserModel? user;
+  final bool isHost;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = user?.shortName ?? 'Player';
+    final photo = user?.photoUrl;
+    return Material(
+      color: TUColors.surface2,
+      borderRadius: BorderRadius.circular(TUColors.rPill),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(TUColors.rPill),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(5, 5, 11, 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(TUColors.rPill),
+            border: Border.all(color: TUColors.line),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              for (var i = 0; i < game.capacity; i++)
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: i < game.spotsFilled ? TUColors.brand : TUColors.surface2,
-                    borderRadius: BorderRadius.circular(8),
-                    border: i < game.spotsFilled ? null : Border.all(color: TUColors.line2, width: 1.5),
-                  ),
-                  child: i < game.spotsFilled ? const Icon(Icons.person, size: 14, color: Colors.white) : null,
+              CircleAvatar(
+                radius: 13,
+                backgroundColor: TUColors.brandSoft,
+                foregroundImage: (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
+                child: Text(
+                  user?.initials ?? '·',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: TUColors.brand700),
                 ),
+              ),
+              const SizedBox(width: 8),
+              Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: TUColors.ink)),
+              if (isHost) ...[
+                const SizedBox(width: 7),
+                const _Pill(label: 'Host', bg: TUColors.brand, fg: Colors.white),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A spot the host reserved for a friend joining off-app (no profile to show).
+class _GuestChip extends StatelessWidget {
+  const _GuestChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(5, 5, 11, 5),
+      decoration: BoxDecoration(
+        color: TUColors.surface2,
+        borderRadius: BorderRadius.circular(TUColors.rPill),
+        border: Border.all(color: TUColors.line),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 13,
+            backgroundColor: TUColors.brandSoft,
+            child: Icon(Icons.person_rounded, size: 15, color: TUColors.brand700),
+          ),
+          SizedBox(width: 8),
+          Text('Guest', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: TUColors.ink)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dashed-look placeholder for an unfilled spot.
+class _OpenSlotChip extends StatelessWidget {
+  const _OpenSlotChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(5, 5, 11, 5),
+      decoration: BoxDecoration(
+        color: TUColors.surface,
+        borderRadius: BorderRadius.circular(TUColors.rPill),
+        border: Border.all(color: TUColors.line2, width: 1.5),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 13,
+            backgroundColor: TUColors.surface2,
+            child: Icon(Icons.person_add_alt_1_rounded, size: 14, color: TUColors.ink3),
+          ),
+          SizedBox(width: 8),
+          Text('Open', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: TUColors.ink3)),
         ],
       ),
     );
@@ -264,10 +426,11 @@ class _RequestTile extends StatefulWidget {
 
 class _RequestTileState extends State<_RequestTile> {
   bool _busy = false;
+  late final Future<UserModel> _requester = AuthService().getUserProfile(widget.request.userId);
 
   String get _subtitle => switch (widget.request.status) {
     JoinRequestStatus.pending => 'Wants to join',
-    JoinRequestStatus.approved => 'Approved — waiting for payment',
+    JoinRequestStatus.approved => 'Approved — waiting to confirm',
     JoinRequestStatus.declined => 'Request declined',
     JoinRequestStatus.confirmed => 'Joined the game',
   };
@@ -289,26 +452,59 @@ class _RequestTileState extends State<_RequestTile> {
     }
   }
 
+  void _openProfile() {
+    final pending = widget.request.status == JoinRequestStatus.pending;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PlayerProfileScreen(
+          userId: widget.request.userId,
+          onApprove: pending ? () => widget.service.approveRequest(gameId: widget.request.gameId, userId: widget.request.userId) : null,
+          onDecline: pending ? () => widget.service.declineRequest(gameId: widget.request.gameId, userId: widget.request.userId) : null,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final short = widget.request.userId.length > 6 ? widget.request.userId.substring(0, 6) : widget.request.userId;
-    return Container(
+    return Material(
+      color: TUColors.surface,
+      borderRadius: BorderRadius.circular(TUColors.rMd),
+      child: InkWell(
+        onTap: _openProfile,
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        child: Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: TUColors.surface, borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(color: TUColors.brandSoft, shape: BoxShape.circle),
-            child: const Icon(Icons.person_outline_rounded, size: 20, color: TUColors.brand700),
+          FutureBuilder<UserModel>(
+            future: _requester,
+            builder: (context, snap) {
+              final photo = snap.data?.photoUrl;
+              return CircleAvatar(
+                radius: 20,
+                backgroundColor: TUColors.brandSoft,
+                foregroundImage: (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
+                child: Text(
+                  snap.data?.initials ?? '·',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: TUColors.brand700),
+                ),
+              );
+            },
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Player · $short', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: TUColors.ink)),
+                FutureBuilder<UserModel>(
+                  future: _requester,
+                  builder: (context, snap) => Text(
+                    snap.data?.shortName ?? 'Player',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: TUColors.ink),
+                  ),
+                ),
                 Text(_subtitle, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
               ],
             ),
@@ -322,10 +518,12 @@ class _RequestTileState extends State<_RequestTile> {
               _IconAction(icon: Icons.check_rounded, color: Colors.white, bg: TUColors.brand, onTap: () => _decide(true)),
             ],
           ] else if (widget.request.status == JoinRequestStatus.approved)
-            const _Pill(label: 'Awaiting pay', bg: TUColors.brandSoft, fg: TUColors.brand700)
+            const _Pill(label: 'To confirm', bg: TUColors.brandSoft, fg: TUColors.brand700)
           else
             const _Pill(label: 'Declined', bg: Color(0xFFFBEEE9), fg: Color(0xFFB23B2E)),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -352,22 +550,91 @@ class _IconAction extends StatelessWidget {
   }
 }
 
-/// Shows the current user's join-request status, with a Pay-to-confirm action
-/// once the host has approved.
-class _MyRequestBanner extends StatelessWidget {
-  const _MyRequestBanner({required this.game, required this.userId, required this.service, required this.perPlayer});
+/// Drives a non-member's path into a game: a primary Join (instant games) or
+/// Request-to-join (approval games) action when they have no request yet, and
+/// otherwise the live status of their request — including a Pay-to-confirm
+/// action once the host has approved.
+class _JoinSection extends StatefulWidget {
+  const _JoinSection({required this.game, required this.userId, required this.service, required this.perPlayer});
   final GameModel game;
   final String userId;
   final GameService service;
   final int perPlayer;
 
   @override
+  State<_JoinSection> createState() => _JoinSectionState();
+}
+
+class _JoinSectionState extends State<_JoinSection> {
+  bool _busy = false;
+
+  Future<void> _run(Future<void> Function() action, String success) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      await action();
+      messenger.showSnackBar(SnackBar(content: Text(success)));
+    } catch (e, st) {
+      _log.e('Join action failed', error: e, stackTrace: st);
+      messenger.showSnackBar(SnackBar(content: Text('Could not join: $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _confirm() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      await widget.service.confirmJoin(gameId: widget.game.id, userId: widget.userId);
+      messenger.showSnackBar(const SnackBar(content: Text("You're in! Settle your share with the organiser.")));
+    } catch (e, st) {
+      _log.e('Confirm spot failed', error: e, stackTrace: st);
+      messenger.showSnackBar(SnackBar(content: Text('Could not confirm: $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final game = widget.game;
     return StreamBuilder<JoinRequestModel?>(
-      stream: service.streamMyRequest(game.id, userId),
+      stream: widget.service.streamMyRequest(game.id, widget.userId),
       builder: (context, snap) {
         final r = snap.data;
-        if (r == null || r.status == JoinRequestStatus.confirmed) return const SizedBox.shrink();
+
+        // No active request → show the primary entry action.
+        if (r == null || r.status == JoinRequestStatus.confirmed) {
+          if (game.status == GameStatus.private) {
+            return const _Banner(
+              icon: Icons.lock_outline_rounded,
+              bg: TUColors.surface2,
+              fg: TUColors.ink2,
+              title: 'Not accepting players',
+              sub: 'The host has set this game to private.',
+            );
+          }
+          final full = game.spotsOpen <= 0 || game.status != GameStatus.open;
+          if (full) {
+            return const _Banner(
+              icon: Icons.lock_clock_rounded,
+              bg: TUColors.surface2,
+              fg: TUColors.ink2,
+              title: 'Game full',
+              sub: 'This game already has a full team — check back if a spot reopens.',
+            );
+          }
+          final approval = game.requiresApproval;
+          return _PrimaryButton(
+            label: approval ? 'Request to join' : 'Join game',
+            icon: approval ? Icons.how_to_reg_rounded : Icons.add_rounded,
+            busy: _busy,
+            onTap: approval
+                ? () => _run(() => widget.service.requestToJoin(gameId: game.id, userId: widget.userId), 'Request sent — the host will review it.')
+                : () => _run(() => widget.service.joinGame(game.id, widget.userId), "You're in!"),
+          );
+        }
 
         switch (r.status) {
           case JoinRequestStatus.pending:
@@ -392,8 +659,8 @@ class _MyRequestBanner extends StatelessWidget {
               bg: TUColors.brandTint,
               fg: TUColors.brand700,
               title: "You're approved!",
-              sub: 'Pay your $perPlayer ${game.currency} share to confirm your spot.',
-              action: ('Pay & join', () => _pay(context)),
+              sub: 'Confirm to lock your spot — your ${widget.perPlayer} ${game.currency} share is settled with the organiser (cash or transfer).',
+              action: ('Confirm spot', _confirm),
             );
           case JoinRequestStatus.confirmed:
             return const SizedBox.shrink();
@@ -401,25 +668,35 @@ class _MyRequestBanner extends StatelessWidget {
       },
     );
   }
-
-  Future<void> _pay(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final ok = await showAdaptiveSheet<bool>(context, builder: (_) => _PaySheet(game: game, perPlayer: perPlayer));
-    if (ok != true) return;
-    try {
-      await service.confirmJoin(gameId: game.id, userId: userId, method: ok == true ? _lastMethod : PaymentMethod.card);
-    } catch (e, st) {
-      _log.e('Confirm join failed', error: e, stackTrace: st);
-      messenger.showSnackBar(SnackBar(content: Text('Payment failed: $e')));
-      return;
-    }
-    messenger.showSnackBar(const SnackBar(content: Text("You're in!")));
-  }
 }
 
-// The pay sheet returns the chosen method via this; simple module-level handoff
-// keeps the sheet decoupled from the banner.
-PaymentMethod _lastMethod = PaymentMethod.card;
+/// Full-width brand action button with a busy spinner, used for the primary
+/// Join / Request-to-join action.
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({required this.label, required this.icon, required this.busy, required this.onTap});
+  final String label;
+  final IconData icon;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: busy ? null : onTap,
+      icon: busy
+          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+          : Icon(icon, size: 20),
+      label: Text(label),
+      style: FilledButton.styleFrom(
+        backgroundColor: TUColors.brand,
+        foregroundColor: Colors.white,
+        minimumSize: const Size(double.infinity, 52),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(TUColors.rMd)),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
 
 class _Banner extends StatelessWidget {
   const _Banner({required this.icon, required this.bg, required this.fg, required this.title, required this.sub, this.action});
@@ -478,39 +755,87 @@ class _Banner extends StatelessWidget {
   }
 }
 
-class _PayMethod {
-  const _PayMethod(this.id, this.label, this.sub, this.icon, this.method);
-  final String id;
-  final String label;
-  final String sub;
-  final IconData icon;
-  final PaymentMethod method;
-}
-
-const _payMethods = [
-  _PayMethod('visa', 'Visa', '•••• 4242', Icons.credit_card_rounded, PaymentMethod.card),
-  _PayMethod('apple', 'Apple Pay', 'Default', Icons.apple_rounded, PaymentMethod.card),
-  _PayMethod('cash', 'Cash at venue', 'Pay on arrival', Icons.payments_outlined, PaymentMethod.cash),
-];
-
-/// Pay-after-approval sheet: per-player share + method, returns true on confirm
-/// (the chosen method is handed back via [_lastMethod]).
-class _PaySheet extends StatefulWidget {
-  const _PaySheet({required this.game, required this.perPlayer});
+/// Host-only entry point to the edit sheet.
+class _EditGameButton extends StatelessWidget {
+  const _EditGameButton({required this.game, required this.service});
   final GameModel game;
-  final int perPlayer;
+  final GameService service;
 
   @override
-  State<_PaySheet> createState() => _PaySheetState();
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: () => showAdaptiveSheet<void>(context, builder: (_) => _EditGameSheet(game: game, service: service)),
+      icon: const Icon(Icons.edit_outlined, size: 18),
+      label: const Text('Edit game'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: TUColors.brand700,
+        side: const BorderSide(color: TUColors.line2, width: 1.5),
+        minimumSize: const Size(double.infinity, 50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(TUColors.rMd)),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
 }
 
-class _PaySheetState extends State<_PaySheet> {
-  String _methodId = 'visa';
+/// Host edits team size, approval, and open/private state. Capacity is bounded
+/// below by the players already in and above by the pitch's max players.
+class _EditGameSheet extends StatefulWidget {
+  const _EditGameSheet({required this.game, required this.service});
+  final GameModel game;
+  final GameService service;
+
+  @override
+  State<_EditGameSheet> createState() => _EditGameSheetState();
+}
+
+class _EditGameSheetState extends State<_EditGameSheet> {
+  late bool _isOpen = widget.game.status != GameStatus.private;
+  late bool _requiresApproval = widget.game.requiresApproval;
+  late int _capacity = widget.game.capacity;
+  late int _filled = widget.game.spotsFilled;
+  late int _maxCapacity = widget.game.capacity;
+  bool _saving = false;
+
+  // Confirmed spots can't fall below the players actually joined in-app.
+  int get _minFilled => widget.game.playerIds.isEmpty ? 1 : widget.game.playerIds.length;
+
+  @override
+  void initState() {
+    super.initState();
+    VenueService().getPitch(widget.game.venueId, widget.game.pitchId).then((p) {
+      if (mounted) setState(() => _maxCapacity = p.maxPlayers < _capacity ? _capacity : p.maxPlayers);
+    }).catchError((Object e, StackTrace st) {
+      _log.w('Could not load pitch capacity', error: e, stackTrace: st);
+      if (mounted) setState(() => _maxCapacity = _capacity > 30 ? _capacity : 30);
+    });
+  }
+
+  Future<void> _save() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+    setState(() => _saving = true);
+    try {
+      await widget.service.updateGame(
+        gameId: widget.game.id,
+        capacity: _capacity,
+        spotsFilled: _filled,
+        requiresApproval: _requiresApproval,
+        isOpen: _isOpen,
+      );
+      messenger.showSnackBar(const SnackBar(content: Text('Game updated')));
+      nav.pop();
+    } catch (e, st) {
+      _log.e('Game update failed', error: e, stackTrace: st);
+      messenger.showSnackBar(SnackBar(content: Text('Could not update game: $e')));
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final mobile = isMobileWidth(context);
-    final cur = widget.game.currency;
+    final perPlayer = (widget.game.pricePerHour / 100 / _capacity).round();
     return SafeArea(
       top: false,
       child: Column(
@@ -523,7 +848,7 @@ class _PaySheetState extends State<_PaySheet> {
             padding: const EdgeInsets.fromLTRB(24, 18, 16, 12),
             child: Row(
               children: [
-                const Expanded(child: Text('Pay to confirm', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: TUColors.ink))),
+                const Expanded(child: Text('Edit game', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: TUColors.ink))),
                 _IconAction(icon: Icons.close_rounded, color: TUColors.ink2, onTap: () => Navigator.of(context).pop()),
               ],
             ),
@@ -534,21 +859,58 @@ class _PaySheetState extends State<_PaySheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // ── Team size + spots filled ──
                   Container(
-                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-                    decoration: BoxDecoration(color: TUColors.brandTint, borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.brandSoft)),
-                    child: Row(
+                    decoration: BoxDecoration(color: TUColors.surface, borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
+                    child: Column(
                       children: [
-                        const Expanded(child: Text('Your spot', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: TUColors.ink))),
-                        Text('${widget.perPlayer} $cur', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: TUColors.brand700)),
+                        _StepperRow(
+                          title: 'Team size',
+                          sub: 'Total spots on the court',
+                          value: _capacity,
+                          onMinus: _capacity > _filled ? () => setState(() => _capacity--) : null,
+                          onPlus: _capacity < _maxCapacity ? () => setState(() => _capacity++) : null,
+                        ),
+                        const Divider(height: 1, thickness: 1, color: TUColors.line),
+                        _StepperRow(
+                          title: 'Spots filled',
+                          sub: 'Bump up for friends joining off-app',
+                          value: _filled,
+                          onMinus: _filled > _minFilled ? () => setState(() => _filled--) : null,
+                          onPlus: _filled < _capacity ? () => setState(() => _filled++) : null,
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  for (final m in _payMethods) ...[
-                    _PayOptionRow(method: m, selected: _methodId == m.id, onTap: () => setState(() => _methodId = m.id)),
-                    if (m != _payMethods.last) const SizedBox(height: 9),
-                  ],
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      _capacity - _filled > 0
+                          ? 'Needs ${_capacity - _filled} more · $perPlayer ${widget.game.currency} per player'
+                          : 'Team complete · $perPlayer ${widget.game.currency} per player',
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: TUColors.ink3),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // ── Open to players ──
+                  _ToggleRow(
+                    title: 'Open to players',
+                    sub: _isOpen ? 'Anyone can find and join this game.' : 'Private — closed to new players, your team stays.',
+                    value: _isOpen,
+                    onChanged: (v) => setState(() => _isOpen = v),
+                  ),
+                  const SizedBox(height: 12),
+                  // ── Require approval ──
+                  Opacity(
+                    opacity: _isOpen ? 1 : 0.5,
+                    child: _ToggleRow(
+                      title: 'Approve who joins',
+                      sub: 'Review each request before a player is added.',
+                      value: _requiresApproval,
+                      onChanged: _isOpen ? (v) => setState(() => _requiresApproval = v) : null,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -557,10 +919,7 @@ class _PaySheetState extends State<_PaySheet> {
             decoration: const BoxDecoration(border: Border(top: BorderSide(color: TUColors.line))),
             padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
             child: FilledButton(
-              onPressed: () {
-                _lastMethod = _payMethods.firstWhere((m) => m.id == _methodId).method;
-                Navigator.of(context).pop(true);
-              },
+              onPressed: _saving ? null : _save,
               style: FilledButton.styleFrom(
                 backgroundColor: TUColors.brand,
                 foregroundColor: Colors.white,
@@ -568,7 +927,9 @@ class _PaySheetState extends State<_PaySheet> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(TUColors.rMd)),
                 textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
               ),
-              child: Text('Pay ${widget.perPlayer} $cur & join'),
+              child: _saving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Save changes'),
             ),
           ),
         ],
@@ -577,45 +938,85 @@ class _PaySheetState extends State<_PaySheet> {
   }
 }
 
-class _PayOptionRow extends StatelessWidget {
-  const _PayOptionRow({required this.method, required this.selected, required this.onTap});
-  final _PayMethod method;
-  final bool selected;
-  final VoidCallback onTap;
+class _StepperRow extends StatelessWidget {
+  const _StepperRow({required this.title, required this.sub, required this.value, required this.onMinus, required this.onPlus});
+  final String title;
+  final String sub;
+  final int value;
+  final VoidCallback? onMinus;
+  final VoidCallback? onPlus;
 
   @override
   Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: TUColors.ink)),
+                const SizedBox(height: 2),
+                Text(sub, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
+              ],
+            ),
+          ),
+          _StepButton(icon: Icons.remove_rounded, onTap: onMinus),
+          SizedBox(width: 40, child: Text('$value', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: TUColors.ink))),
+          _StepButton(icon: Icons.add_rounded, onTap: onPlus),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  const _StepButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
     return Material(
-      color: selected ? TUColors.brandTint : TUColors.surface,
-      borderRadius: BorderRadius.circular(TUColors.rMd),
+      color: enabled ? TUColors.brandSoft : TUColors.surface2,
+      shape: const CircleBorder(),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(TUColors.rMd),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: selected ? TUColors.brand : TUColors.line2, width: 1.5)),
-          child: Row(
-            children: [
-              Icon(method.icon, size: 22, color: selected ? TUColors.brand700 : TUColors.ink),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(method.label, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: TUColors.ink)),
-                    Text(method.sub, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
-                  ],
-                ),
-              ),
-              Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: selected ? TUColors.brand : Colors.transparent, border: Border.all(color: selected ? TUColors.brand : TUColors.line2, width: 2)),
-                child: selected ? const Center(child: SizedBox(width: 8, height: 8, child: DecoratedBox(decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle)))) : null,
-              ),
-            ],
+        customBorder: const CircleBorder(),
+        child: SizedBox(width: 38, height: 38, child: Icon(icon, size: 20, color: enabled ? TUColors.brand700 : TUColors.ink3)),
+      ),
+    );
+  }
+}
+
+class _ToggleRow extends StatelessWidget {
+  const _ToggleRow({required this.title, required this.sub, required this.value, required this.onChanged});
+  final String title;
+  final String sub;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 12, 14),
+      decoration: BoxDecoration(color: TUColors.surface, borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: TUColors.ink)),
+                const SizedBox(height: 2),
+                Text(sub, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3, height: 1.3)),
+              ],
+            ),
           ),
-        ),
+          Switch.adaptive(value: value, onChanged: onChanged),
+        ],
       ),
     );
   }

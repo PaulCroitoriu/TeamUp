@@ -12,11 +12,11 @@ class BookConfig {
     required this.open,
     required this.players,
     required this.method,
-    required this.split,
     required this.youPay,
     this.gameSize = 0,
     this.confirmed = 1,
     this.requiresApproval = false,
+    this.recurring = false,
   });
 
   /// Open game (leave spots for others) vs private (your group only).
@@ -34,14 +34,15 @@ class BookConfig {
   final int confirmed;
   final PaymentMethod method;
 
-  /// Private only — split the court across the group vs pay the full court.
-  final bool split;
-
-  /// Amount this user pays, in whole currency units.
+  /// Amount this user pays, in whole currency units (the full court for the
+  /// organiser; a per-player share is only shown for info).
   final int youPay;
 
   /// Open game only — host approves each joiner vs anyone can join.
   final bool requiresApproval;
+
+  /// Private only — repeat this booking weekly (same day & time).
+  final bool recurring;
 }
 
 class _PayMethod {
@@ -53,27 +54,29 @@ class _PayMethod {
   final PaymentMethod method;
 }
 
+// How the organiser settles the court with the venue. The per-player split is
+// shown for info only — the organiser collects from the team (cash/transfer).
 const _payMethods = [
   _PayMethod(
-    'visa',
-    'Visa',
-    '•••• 4242',
-    Icons.credit_card_rounded,
-    PaymentMethod.card,
-  ),
-  _PayMethod(
-    'apple',
-    'Apple Pay',
-    'Default',
-    Icons.apple_rounded,
-    PaymentMethod.card,
-  ),
-  _PayMethod(
     'cash',
-    'Cash at venue',
-    'Pay on arrival',
+    'Cash on premises',
+    'Pay the venue on arrival',
     Icons.payments_outlined,
     PaymentMethod.cash,
+  ),
+  _PayMethod(
+    'transfer',
+    'Bank transfer',
+    'Pay the venue by transfer',
+    Icons.account_balance_outlined,
+    PaymentMethod.transfer,
+  ),
+  _PayMethod(
+    'card',
+    'Online by card',
+    'Pay online by card',
+    Icons.credit_card_rounded,
+    PaymentMethod.card,
   ),
 ];
 
@@ -122,9 +125,9 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
   // Total players for an open game (defaults to the court's full size). The
   // host can shrink it, e.g. a 4-player padel court played 1v1.
   late int _gameSize = widget.pitch.maxPlayers;
-  bool _split = true;
   bool _requiresApproval = false; // open-game create: require host approval
-  String _methodId = 'visa';
+  bool _recurring = false; // private booking: repeat weekly
+  String _methodId = 'cash';
   bool _done = false;
   bool _submitting = false;
 
@@ -143,12 +146,18 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
   int get _total =>
       ((widget.joinGame?.pricePerHour ?? widget.pitch.pricePerHour) / 100)
           .round();
-  int get _perPlayer => (_total / _cap).round();
-  int get _youPay {
-    if (_isJoin) return _perPlayer; // joiner pays one spot
-    if (_open) return _perPlayer * _bring; // host covers their group
-    return _split ? (_total / _bring).round() : _total;
+
+  // How many ways the court is split, for the per-player figure shown as info.
+  int get _shareCount {
+    if (_isJoin) return _cap; // game capacity
+    if (_open) return _gameSize; // open-game total team
+    return _bring; // private group shares the court
   }
+
+  int get _perShare => _shareCount <= 0 ? _total : (_total / _shareCount).round();
+
+  // The organiser settles the full court; a joiner just sees their share.
+  int get _youPay => _isJoin ? _perShare : _total;
 
   String get _cur => widget.pitch.currency;
   _PayMethod get _method => _payMethods.firstWhere((m) => m.id == _methodId);
@@ -162,9 +171,9 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
         gameSize: _open ? _gameSize : widget.pitch.maxPlayers,
         confirmed: _open ? _bring : 1,
         method: _method.method,
-        split: _split,
         youPay: _youPay,
         requiresApproval: _requiresApproval,
+        recurring: _recurring && !_open,
       ),
     );
     if (!mounted) return;
@@ -280,19 +289,27 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
                 padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
                 child: Column(
                   children: [
-                    _receiptRow(
-                      _open || _split ? 'Your share' : 'Court total',
-                      '$_youPay $_cur',
-                      strong: true,
-                    ),
-                    const SizedBox(height: 8),
-                    _receiptRow('Paid with ${_method.label}', _method.sub),
-                    if (_open) ...[
+                    if (_isJoin) ...[
+                      _receiptRow('Your share', '$_perShare $_cur', strong: true),
                       const SizedBox(height: 8),
-                      _receiptRow(
-                        'Looking for',
-                        '${_gameSize - _bring} ${_gameSize - _bring == 1 ? 'player' : 'players'}',
-                      ),
+                      _receiptRow('How to pay', 'Cash or transfer to the organiser'),
+                    ] else ...[
+                      _receiptRow('Court total', '$_total $_cur', strong: true),
+                      const SizedBox(height: 8),
+                      _receiptRow('Paying by', _method.label),
+                      const SizedBox(height: 8),
+                      _receiptRow('Per player', '$_perShare $_cur'),
+                      if (_open) ...[
+                        const SizedBox(height: 8),
+                        _receiptRow(
+                          'Looking for',
+                          '${_gameSize - _bring} ${_gameSize - _bring == 1 ? 'player' : 'players'}',
+                        ),
+                      ],
+                      if (_recurring && !_open) ...[
+                        const SizedBox(height: 8),
+                        _receiptRow('Repeats', 'Weekly · same day & time'),
+                      ],
                     ],
                   ],
                 ),
@@ -474,28 +491,16 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
                 ),
               ],
               const SizedBox(height: 20),
-              // payment
-              const _Label('Payment'),
+              // payment — organiser settles the whole court; per-player is info
+              const _Label('Payment', hint: 'you settle the court'),
               const SizedBox(height: 11),
-              if (_open)
-                _PerPlayerCard(
-                  total: _total,
-                  cap: _cap,
-                  perPlayer: _perPlayer,
-                  currency: _cur,
-                  confirmed: _bring,
-                )
-              else
-                _ToggleRow(
-                  title: 'Split per player',
-                  sub: _split
-                      ? 'Everyone pays ${(_total / _bring).round()} $_cur'
-                      : 'You cover the full court',
-                  trailing: _MiniSwitch(
-                    value: _split,
-                    onChanged: (v) => setState(() => _split = v),
-                  ),
-                ),
+              _ShareCard(
+                title: 'Per player',
+                amount: '$_perShare $_cur',
+                sub: _shareCount > 1
+                    ? 'Court total $_total $_cur · split $_shareCount ways — you collect from the team'
+                    : 'You pay the full court',
+              ),
               const SizedBox(height: 12),
               for (final m in _payMethods) ...[
                 _PayOption(
@@ -504,6 +509,21 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
                   onTap: () => setState(() => _methodId = m.id),
                 ),
                 if (m != _payMethods.last) const SizedBox(height: 9),
+              ],
+              if (!_open) ...[
+                const SizedBox(height: 20),
+                const _Label('Repeat'),
+                const SizedBox(height: 11),
+                _ToggleRow(
+                  title: 'Repeats weekly',
+                  sub: _recurring
+                      ? 'Books the same slot every week'
+                      : 'One-off booking',
+                  trailing: _MiniSwitch(
+                    value: _recurring,
+                    onChanged: (v) => setState(() => _recurring = v),
+                  ),
+                ),
               ],
             ],
           ),
@@ -521,9 +541,9 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    (_open || _split) ? 'YOU PAY' : 'COURT TOTAL',
-                    style: const TextStyle(
+                  const Text(
+                    'COURT TOTAL',
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.4,
@@ -533,31 +553,21 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
                   const SizedBox(height: 1),
                   Text.rich(
                     TextSpan(
-                      text: '$_youPay $_cur',
+                      text: '$_total $_cur',
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
                         color: TUColors.brand700,
                       ),
                       children: [
-                        if (_open)
-                          TextSpan(
-                            text: ' / $_total court',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: TUColors.ink3,
-                            ),
-                          )
-                        else if (_split)
-                          TextSpan(
-                            text: ' / $_total total',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: TUColors.ink3,
-                            ),
+                        TextSpan(
+                          text: ' · $_perShare/player',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: TUColors.ink3,
                           ),
+                        ),
                       ],
                     ),
                   ),
@@ -566,7 +576,7 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
             ),
             const SizedBox(width: 16),
             _PrimaryButton(
-              label: _open ? 'Create open game' : 'Confirm & pay',
+              label: _open ? 'Create open game' : 'Confirm booking',
               busy: _submitting,
               compact: true,
               onPressed: _submitting ? null : _confirm,
@@ -594,7 +604,7 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
                 children: [
                   Text(
                     widget.payOnly
-                        ? 'Pay to confirm'
+                        ? 'Confirm your spot'
                         : _requestMode
                         ? 'Request to join'
                         : 'Join this game',
@@ -658,7 +668,7 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'The host approves who joins. Pay your $_perPlayer $_cur share only after you\u2019re approved.',
+                          'The host approves who joins. Once you\u2019re in, settle your $_perShare $_cur share with the organiser \u2014 cash or transfer.',
                           style: const TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w500,
@@ -671,23 +681,13 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
                   ),
                 ),
               ] else ...[
-                const _Label('Payment'),
+                const _Label('Your share'),
                 const SizedBox(height: 11),
-                _PerPlayerCard(
-                  total: _total,
-                  cap: _cap,
-                  perPlayer: _perPlayer,
-                  currency: _cur,
+                _ShareCard(
+                  title: 'Your share',
+                  amount: '$_perShare $_cur',
+                  sub: 'Settle with the organiser — cash or transfer. No payment in the app.',
                 ),
-                const SizedBox(height: 12),
-                for (final m in _payMethods) ...[
-                  _PayOption(
-                    method: m,
-                    selected: _methodId == m.id,
-                    onTap: () => setState(() => _methodId = m.id),
-                  ),
-                  if (m != _payMethods.last) const SizedBox(height: 9),
-                ],
               ],
             ],
           ),
@@ -705,7 +705,7 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'YOU PAY',
+                    'YOUR SHARE',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -716,7 +716,7 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
                   const SizedBox(height: 1),
                   Text.rich(
                     TextSpan(
-                      text: '$_perPlayer $_cur',
+                      text: '$_perShare $_cur',
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
@@ -740,10 +740,10 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
             const SizedBox(width: 16),
             _PrimaryButton(
               label: widget.payOnly
-                  ? 'Pay & join'
+                  ? 'Confirm spot'
                   : _requestMode
                   ? 'Request to join'
-                  : 'Join & pay',
+                  : 'Join game',
               busy: _submitting,
               compact: true,
               onPressed: _submitting ? null : _confirm,
@@ -1024,19 +1024,13 @@ class _ToggleRow extends StatelessWidget {
   }
 }
 
-class _PerPlayerCard extends StatelessWidget {
-  const _PerPlayerCard({
-    required this.total,
-    required this.cap,
-    required this.perPlayer,
-    required this.currency,
-    this.confirmed = 1,
-  });
-  final int total;
-  final int cap;
-  final int perPlayer;
-  final String currency;
-  final int confirmed;
+/// Info card showing a headline amount (per-player or your share) with context.
+/// No payment is taken here — it tells the player what to settle and with whom.
+class _ShareCard extends StatelessWidget {
+  const _ShareCard({required this.title, required this.amount, required this.sub});
+  final String title;
+  final String amount;
+  final String sub;
 
   @override
   Widget build(BuildContext context) {
@@ -1053,48 +1047,16 @@ class _PerPlayerCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  confirmed > 1 ? 'Your group ($confirmed)' : 'Your spot only',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: TUColors.ink,
-                  ),
-                ),
+                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: TUColors.ink)),
                 const SizedBox(height: 2),
-                Text(
-                  'Court split evenly across $cap players',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: TUColors.ink2,
-                  ),
-                ),
+                Text(sub, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink2, height: 1.35)),
               ],
             ),
           ),
           const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                confirmed > 1 ? '$confirmed × $perPlayer' : '$total / $cap',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: TUColors.ink3,
-                ),
-              ),
-              Text(
-                '${perPlayer * confirmed} $currency',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: TUColors.brand700,
-                  height: 1.1,
-                ),
-              ),
-            ],
+          Text(
+            amount,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: TUColors.brand700, height: 1.1),
           ),
         ],
       ),

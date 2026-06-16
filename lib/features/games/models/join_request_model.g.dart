@@ -47,6 +47,7 @@ const _$JoinRequestStatusEnumMap = {
 const _$PaymentMethodEnumMap = {
   PaymentMethod.cash: 'cash',
   PaymentMethod.card: 'card',
+  PaymentMethod.transfer: 'transfer',
 };
 
 Json? _$JsonConverterToJson<Json, Value>(

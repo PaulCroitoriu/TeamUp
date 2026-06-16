@@ -415,7 +415,13 @@ class _GameCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                           ],
-                          if (full)
+                          if (game.status == GameStatus.private)
+                            const _Pill(
+                              label: 'Private',
+                              bg: TUColors.surface2,
+                              fg: TUColors.ink2,
+                            )
+                          else if (full)
                             const _Pill(
                               label: 'Full',
                               bg: TUColors.busyBg,

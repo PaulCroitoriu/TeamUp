@@ -70,4 +70,5 @@ const _$GameStatusEnumMap = {
   GameStatus.full: 'full',
   GameStatus.cancelled: 'cancelled',
   GameStatus.completed: 'completed',
+  GameStatus.private: 'private',
 };

@@ -3,12 +3,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import 'package:teamup/core/enums/booking_status.dart';
 import 'package:teamup/core/enums/notification_type.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
 import 'package:teamup/features/auth/data/auth_service.dart';
 import 'package:teamup/features/auth/models/business_model.dart';
 import 'package:teamup/features/auth/models/user_model.dart';
 import 'package:teamup/features/bookings/data/booking_service.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
+import 'package:teamup/features/games/data/game_service.dart';
+import 'package:teamup/features/games/screens/game_detail_screen.dart';
 import 'package:teamup/features/messaging/data/messaging_service.dart';
 import 'package:teamup/features/messaging/models/message_model.dart';
 import 'package:teamup/features/notifications/data/notification_service.dart';
@@ -17,6 +20,7 @@ import 'package:teamup/features/notifications/widgets/notification_toast_listene
 import 'package:teamup/features/venues/data/venue_service.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
+import 'package:teamup/shared/widgets/adaptive_sheet.dart';
 
 final _log = Logger();
 
@@ -234,6 +238,38 @@ class _DetailsPanel extends StatelessWidget {
   bool get _canConfirm => isBusinessOwner && booking.status == BookingStatus.pending;
   bool get _canCancel => (isBusinessOwner || _isBooker) && booking.status != BookingStatus.cancelled;
 
+  // The booker can open an upcoming private booking to players (e.g. a single
+  // occurrence of a recurring booking when a regular drops out this week).
+  bool get _canOpenToPlayers =>
+      _isBooker &&
+      booking.gameId == null &&
+      booking.status != BookingStatus.cancelled &&
+      booking.startTime.isAfter(DateTime.now());
+
+  Future<void> _openToPlayers(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+    final cfg = await showAdaptiveSheet<({int capacity, int spotsFilled, bool approval})>(
+      context,
+      builder: (_) => _OpenToPlayersSheet(pitch: ctx.pitch, booking: booking),
+    );
+    if (cfg == null) return;
+    try {
+      final game = await GameService().openBookingAsGame(
+        booking: booking,
+        sport: ctx.pitch.sport,
+        capacity: cfg.capacity,
+        spotsFilled: cfg.spotsFilled,
+        requiresApproval: cfg.approval,
+      );
+      messenger.showSnackBar(const SnackBar(content: Text('Open to players — others can join now')));
+      nav.push(MaterialPageRoute(builder: (_) => GameDetailScreen(gameId: game.id)));
+    } catch (e, st) {
+      _log.e('Open booking as game failed', error: e, stackTrace: st);
+      messenger.showSnackBar(SnackBar(content: Text('Could not open: $e')));
+    }
+  }
+
   Future<void> _confirm(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -403,6 +439,36 @@ class _DetailsPanel extends StatelessWidget {
 
         const SizedBox(height: 12),
         _BookingTimeline(booking: booking),
+
+        // ── Open to players / view the open game ──
+        if (_isBooker && booking.gameId != null) ...[
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => GameDetailScreen(gameId: booking.gameId!)),
+            ),
+            icon: const Icon(Icons.groups_rounded),
+            label: const Text('View open game'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: colors.primary,
+              side: BorderSide(color: colors.primary.withAlpha(90)),
+              minimumSize: const Size(double.infinity, 50),
+            ),
+          ),
+        ] else if (_canOpenToPlayers) ...[
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () => _openToPlayers(context),
+            icon: const Icon(Icons.group_add_rounded),
+            label: const Text('Open to players'),
+            style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Missing a regular this week? Open just this booking so others can join or ask to join.',
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(140)),
+          ),
+        ],
 
         if (_canConfirm || _canCancel) ...[
           const SizedBox(height: 24),
@@ -956,6 +1022,182 @@ class _Bubble extends StatelessWidget {
             Text(_fmtTime(message.sentAt), style: TextStyle(fontSize: 10, color: timeColor)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Open-to-players sheet ──────────────────────────────────
+
+/// Lets the booker turn a private booking into an open game for this occurrence:
+/// pick the team size, how many are already coming, and whether to vet joiners.
+class _OpenToPlayersSheet extends StatefulWidget {
+  const _OpenToPlayersSheet({required this.pitch, required this.booking});
+  final PitchModel pitch;
+  final BookingModel booking;
+
+  @override
+  State<_OpenToPlayersSheet> createState() => _OpenToPlayersSheetState();
+}
+
+class _OpenToPlayersSheetState extends State<_OpenToPlayersSheet> {
+  late int _capacity = widget.pitch.maxPlayers;
+  late int _filled = (widget.pitch.maxPlayers - 1).clamp(1, widget.pitch.maxPlayers);
+  bool _approval = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = isMobileWidth(context);
+    final cur = widget.booking.currency;
+    final total = (widget.booking.pricePaid / 100).round();
+    final perPlayer = _capacity <= 0 ? total : (total / _capacity).round();
+    final needs = (_capacity - _filled).clamp(0, _capacity);
+
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (mobile)
+            Container(margin: const EdgeInsets.only(top: 10, bottom: 2), width: 42, height: 5, decoration: BoxDecoration(color: TUColors.line2, borderRadius: BorderRadius.circular(TUColors.rPill))),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 18, 24, 4),
+            child: Text('Open to players', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: TUColors.ink)),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Text('Just this booking — others can join or ask to join.', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TUColors.ink3)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  decoration: BoxDecoration(color: TUColors.surface, borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
+                  child: Column(
+                    children: [
+                      _SheetStepperRow(
+                        title: 'Team size',
+                        sub: 'Total spots on the court',
+                        value: _capacity,
+                        onMinus: _capacity > _filled && _capacity > 2 ? () => setState(() => _capacity--) : null,
+                        onPlus: _capacity < widget.pitch.maxPlayers ? () => setState(() => _capacity++) : null,
+                      ),
+                      const Divider(height: 1, thickness: 1, color: TUColors.line),
+                      _SheetStepperRow(
+                        title: 'Already coming',
+                        sub: 'You and the regulars who can make it',
+                        value: _filled,
+                        onMinus: _filled > 1 ? () => setState(() => _filled--) : null,
+                        onPlus: _filled < _capacity ? () => setState(() => _filled++) : null,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    needs > 0 ? 'Opens $needs spot${needs == 1 ? '' : 's'} · $perPlayer $cur per player' : 'No open spots — raise the team size',
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: TUColors.ink3),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 12, 14),
+                  decoration: BoxDecoration(color: TUColors.surface, borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Approve who joins', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: TUColors.ink)),
+                            const SizedBox(height: 2),
+                            Text(_approval ? 'Players ask — you approve each one' : 'Anyone can join instantly', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
+                          ],
+                        ),
+                      ),
+                      Switch.adaptive(value: _approval, onChanged: (v) => setState(() => _approval = v)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            decoration: const BoxDecoration(border: Border(top: BorderSide(color: TUColors.line))),
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
+            child: FilledButton(
+              onPressed: needs > 0
+                  ? () => Navigator.of(context).pop((capacity: _capacity, spotsFilled: _filled, approval: _approval))
+                  : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: TUColors.brand,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(TUColors.rMd)),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+              child: const Text('Open to players'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetStepperRow extends StatelessWidget {
+  const _SheetStepperRow({required this.title, required this.sub, required this.value, required this.onMinus, required this.onPlus});
+  final String title;
+  final String sub;
+  final int value;
+  final VoidCallback? onMinus;
+  final VoidCallback? onPlus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: TUColors.ink)),
+                const SizedBox(height: 2),
+                Text(sub, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
+              ],
+            ),
+          ),
+          _SheetStepBtn(icon: Icons.remove_rounded, onTap: onMinus),
+          SizedBox(width: 40, child: Text('$value', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: TUColors.ink))),
+          _SheetStepBtn(icon: Icons.add_rounded, onTap: onPlus),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetStepBtn extends StatelessWidget {
+  const _SheetStepBtn({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Material(
+      color: enabled ? TUColors.brandSoft : TUColors.surface2,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(width: 38, height: 38, child: Icon(icon, size: 20, color: enabled ? TUColors.brand700 : TUColors.ink3)),
       ),
     );
   }

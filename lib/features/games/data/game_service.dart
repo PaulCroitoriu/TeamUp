@@ -3,7 +3,7 @@ import 'package:teamup/core/enums/booking_status.dart';
 import 'package:teamup/core/enums/game_status.dart';
 import 'package:teamup/core/enums/join_request_status.dart';
 import 'package:teamup/core/enums/notification_type.dart';
-import 'package:teamup/core/enums/payment_method.dart';
+import 'package:teamup/core/enums/sport.dart';
 import 'package:teamup/core/firebase/firestore.dart';
 import 'package:teamup/features/bookings/data/booking_service.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
@@ -107,8 +107,8 @@ class GameService {
     });
   }
 
-  /// Host approves a request. The player is NOT added yet — they must pay to
-  /// confirm. Marks the request approved and notifies the requester to pay.
+  /// Host approves a request. The player is NOT added yet — they must confirm
+  /// their spot. Marks the request approved and notifies the requester.
   Future<void> approveRequest({required String gameId, required String userId}) async {
     final reqRef = _reqDoc(gameId, userId);
     await _firestore.runTransaction((txn) async {
@@ -125,7 +125,7 @@ class GameService {
           recipientId: userId,
           type: NotificationType.joinApproved,
           title: 'Request approved',
-          body: 'The host approved you — pay to confirm your spot',
+          body: 'The host approved you — confirm to lock your spot',
           gameId: gameId,
           createdAt: DateTime.now(),
         ).toJson(),
@@ -133,9 +133,10 @@ class GameService {
     });
   }
 
-  /// Requester pays after approval: adds the player, bumps `spotsFilled`,
-  /// records the payment method, and marks the request confirmed.
-  Future<void> confirmJoin({required String gameId, required String userId, required PaymentMethod method}) async {
+  /// Requester confirms their spot after approval: adds the player and bumps
+  /// `spotsFilled`. No in-app payment — the joiner settles their share with the
+  /// organizer (cash or transfer), so this just locks in the spot.
+  Future<void> confirmJoin({required String gameId, required String userId}) async {
     final gameRef = _games.doc(gameId);
     final reqRef = _reqDoc(gameId, userId);
     await _firestore.runTransaction((txn) async {
@@ -146,7 +147,7 @@ class GameService {
       final game = GameModel.fromFirestore(gameSnap);
       final req = JoinRequestModel.fromFirestore(reqSnap);
       if (req.status != JoinRequestStatus.approved) throw const GameJoinException('This request is not approved yet.');
-      if (!game.playerIds.contains(userId) && game.spotsOpen <= 0) throw const GameJoinException('The game filled up before you paid.');
+      if (!game.playerIds.contains(userId) && game.spotsOpen <= 0) throw const GameJoinException('The game filled up first.');
 
       final alreadyIn = game.playerIds.contains(userId);
       final filled = alreadyIn ? game.spotsFilled : game.spotsFilled + 1;
@@ -155,7 +156,7 @@ class GameService {
         'spotsFilled': filled,
         if (filled >= game.capacity) 'status': GameStatus.full.name,
       });
-      txn.update(reqRef, {'status': JoinRequestStatus.confirmed.name, 'paymentMethod': method.name});
+      txn.update(reqRef, {'status': JoinRequestStatus.confirmed.name});
 
       // Let the host know the player paid and is in.
       final notifRef = _notifications.doc();
@@ -204,6 +205,45 @@ class GameService {
           type: NotificationType.joinDeclined,
           title: 'A player left',
           body: 'A player left your game \u2014 a spot reopened',
+          gameId: gameId,
+          createdAt: DateTime.now(),
+        ).toJson(),
+      );
+    });
+  }
+
+  /// Host removes a joined player from the game: frees their spot, reopens the
+  /// game if it was full, drops their request record, and notifies the player.
+  /// The host can't remove themselves (cancel the booking instead).
+  Future<void> removePlayer({required String gameId, required String hostId, required String userId}) async {
+    final gameRef = _games.doc(gameId);
+    final reqRef = _reqDoc(gameId, userId);
+    await _firestore.runTransaction((txn) async {
+      final gameSnap = await txn.get(gameRef);
+      if (!gameSnap.exists) throw const GameJoinException('This game no longer exists.');
+
+      final game = GameModel.fromFirestore(gameSnap);
+      if (game.hostId != hostId) throw const GameJoinException('Only the host can remove players.');
+      if (userId == game.hostId) throw const GameJoinException("The host can't be removed.");
+      if (!game.playerIds.contains(userId)) throw const GameJoinException('That player is not in this game.');
+
+      final filled = (game.spotsFilled - 1).clamp(1, game.capacity);
+      txn.update(gameRef, {
+        'playerIds': FieldValue.arrayRemove([userId]),
+        'spotsFilled': filled,
+        if (game.status == GameStatus.full) 'status': GameStatus.open.name,
+      });
+      txn.delete(reqRef);
+
+      final notifRef = _notifications.doc();
+      txn.set(
+        notifRef,
+        NotificationModel(
+          id: notifRef.id,
+          recipientId: userId,
+          type: NotificationType.joinDeclined,
+          title: 'Removed from game',
+          body: 'The host removed you from the game — your spot was freed.',
           gameId: gameId,
           createdAt: DateTime.now(),
         ).toJson(),
@@ -286,6 +326,50 @@ class GameService {
     });
   }
 
+  /// Host edits a game's settings: team size (`capacity`), how many spots are
+  /// filled (`spotsFilled` — which can exceed the app players when off-app
+  /// friends are in), whether joins need approval, and whether it stays open or
+  /// goes private (closed to new joiners while keeping the booking and current
+  /// team). Recomputes the status so a resized/refilled team flips between
+  /// open/full correctly. Confirmed spots can't drop below the players already
+  /// joined in-app, and capacity can't drop below the confirmed spots.
+  Future<void> updateGame({
+    required String gameId,
+    required int capacity,
+    required int spotsFilled,
+    required bool requiresApproval,
+    required bool isOpen,
+  }) async {
+    await _firestore.runTransaction((txn) async {
+      final ref = _games.doc(gameId);
+      final snap = await txn.get(ref);
+      if (!snap.exists) throw const GameJoinException('This game no longer exists.');
+
+      final game = GameModel.fromFirestore(snap);
+      if (game.status == GameStatus.cancelled) {
+        throw const GameJoinException("A cancelled game can't be edited.");
+      }
+      final joined = game.playerIds.isEmpty ? 1 : game.playerIds.length;
+      if (spotsFilled < joined) {
+        throw GameJoinException('$joined player${joined == 1 ? ' has' : 's have'} already joined — confirmed spots can’t be fewer.');
+      }
+      if (capacity < spotsFilled) {
+        throw const GameJoinException('Team size must be at least the confirmed spots.');
+      }
+
+      final status = !isOpen
+          ? GameStatus.private
+          : (spotsFilled >= capacity ? GameStatus.full : GameStatus.open);
+
+      txn.update(ref, {
+        'capacity': capacity,
+        'spotsFilled': spotsFilled,
+        'requiresApproval': requiresApproval,
+        'status': status.name,
+      });
+    });
+  }
+
   /// Stream open games still needing players, soonest first. Sorted client-side
   /// so a single-field query suffices (no composite index needed).
   Stream<List<GameModel>> streamOpenGames() {
@@ -328,6 +412,52 @@ class GameService {
         .where(FieldPath.documentId, whereIn: ids.take(30).toList())
         .snapshots()
         .map((snap) => snap.docs.map(GameModel.fromFirestore).toList());
+  }
+
+  /// Open an *existing* private booking to players — e.g. a single occurrence of
+  /// a recurring booking where a regular can't make it this week. Creates a game
+  /// for that booking only (the rest of the series is untouched) and links the
+  /// two. `spotsFilled` is who's already coming; the remainder become open spots.
+  Future<GameModel> openBookingAsGame({
+    required BookingModel booking,
+    required Sport sport,
+    required int capacity,
+    required int spotsFilled,
+    required bool requiresApproval,
+  }) async {
+    final gameRef = _games.doc();
+    final bookingRef = _bookings.doc(booking.id);
+    final game = GameModel(
+      id: gameRef.id,
+      pitchId: booking.pitchId,
+      venueId: booking.venueId,
+      businessId: booking.businessId,
+      sport: sport,
+      hostId: booking.bookerId,
+      bookingId: booking.id,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      capacity: capacity,
+      spotsFilled: spotsFilled,
+      playerIds: [booking.bookerId],
+      requiresApproval: requiresApproval,
+      pricePerHour: booking.pricePaid,
+      currency: booking.currency,
+      status: spotsFilled >= capacity ? GameStatus.full : GameStatus.open,
+      createdAt: DateTime.now(),
+    );
+
+    await _firestore.runTransaction((txn) async {
+      final bSnap = await txn.get(bookingRef);
+      if (!bSnap.exists) throw const GameJoinException('This booking no longer exists.');
+      if (BookingModel.fromFirestore(bSnap).gameId != null) {
+        throw const GameJoinException('This booking is already open to players.');
+      }
+      txn.set(gameRef, game.toJson());
+      txn.update(bookingRef, {'gameId': gameRef.id});
+    });
+
+    return game;
   }
 
   /// Create an open game and the booking that reserves its court **atomically**.

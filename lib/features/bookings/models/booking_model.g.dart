@@ -29,6 +29,7 @@ _BookingModel _$BookingModelFromJson(Map<String, dynamic> json) =>
       customerEmail: json['customerEmail'] as String?,
       customerUserId: json['customerUserId'] as String?,
       recurrenceId: json['recurrenceId'] as String?,
+      recurring: json['recurring'] as bool? ?? false,
       notes: json['notes'] as String?,
       confirmedAt: const TimestampConverter().fromJson(json['confirmedAt']),
       paidAt: const TimestampConverter().fromJson(json['paidAt']),
@@ -55,6 +56,7 @@ Map<String, dynamic> _$BookingModelToJson(_BookingModel instance) =>
       'customerEmail': instance.customerEmail,
       'customerUserId': instance.customerUserId,
       'recurrenceId': instance.recurrenceId,
+      'recurring': instance.recurring,
       'notes': instance.notes,
       'confirmedAt': _$JsonConverterToJson<dynamic, DateTime>(
         instance.confirmedAt,
@@ -80,6 +82,7 @@ const _$BookingStatusEnumMap = {
 const _$PaymentMethodEnumMap = {
   PaymentMethod.cash: 'cash',
   PaymentMethod.card: 'card',
+  PaymentMethod.transfer: 'transfer',
 };
 
 Json? _$JsonConverterToJson<Json, Value>(
