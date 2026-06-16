@@ -21,7 +21,18 @@ _BookingModel _$BookingModelFromJson(Map<String, dynamic> json) =>
       status:
           $enumDecodeNullable(_$BookingStatusEnumMap, json['status']) ??
           BookingStatus.pending,
+      paymentMethod:
+          $enumDecodeNullable(_$PaymentMethodEnumMap, json['paymentMethod']) ??
+          PaymentMethod.card,
+      customerName: json['customerName'] as String?,
+      customerPhone: json['customerPhone'] as String?,
+      customerEmail: json['customerEmail'] as String?,
+      customerUserId: json['customerUserId'] as String?,
+      recurrenceId: json['recurrenceId'] as String?,
       notes: json['notes'] as String?,
+      confirmedAt: const TimestampConverter().fromJson(json['confirmedAt']),
+      paidAt: const TimestampConverter().fromJson(json['paidAt']),
+      cancelledAt: const TimestampConverter().fromJson(json['cancelledAt']),
       createdAt: const TimestampConverter().fromJson(json['createdAt']),
     );
 
@@ -38,7 +49,25 @@ Map<String, dynamic> _$BookingModelToJson(_BookingModel instance) =>
       'pricePaid': instance.pricePaid,
       'currency': instance.currency,
       'status': _$BookingStatusEnumMap[instance.status]!,
+      'paymentMethod': _$PaymentMethodEnumMap[instance.paymentMethod]!,
+      'customerName': instance.customerName,
+      'customerPhone': instance.customerPhone,
+      'customerEmail': instance.customerEmail,
+      'customerUserId': instance.customerUserId,
+      'recurrenceId': instance.recurrenceId,
       'notes': instance.notes,
+      'confirmedAt': _$JsonConverterToJson<dynamic, DateTime>(
+        instance.confirmedAt,
+        const TimestampConverter().toJson,
+      ),
+      'paidAt': _$JsonConverterToJson<dynamic, DateTime>(
+        instance.paidAt,
+        const TimestampConverter().toJson,
+      ),
+      'cancelledAt': _$JsonConverterToJson<dynamic, DateTime>(
+        instance.cancelledAt,
+        const TimestampConverter().toJson,
+      ),
       'createdAt': const TimestampConverter().toJson(instance.createdAt),
     };
 
@@ -47,3 +76,13 @@ const _$BookingStatusEnumMap = {
   BookingStatus.confirmed: 'confirmed',
   BookingStatus.cancelled: 'cancelled',
 };
+
+const _$PaymentMethodEnumMap = {
+  PaymentMethod.cash: 'cash',
+  PaymentMethod.card: 'card',
+};
+
+Json? _$JsonConverterToJson<Json, Value>(
+  Value? value,
+  Json? Function(Value value) toJson,
+) => value == null ? null : toJson(value);

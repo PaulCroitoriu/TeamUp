@@ -20,6 +20,7 @@ abstract class NotificationModel with _$NotificationModel {
     /// Optional deep-link target IDs.
     String? bookingId,
     String? conversationId,
+    String? gameId,
 
     @Default(false) bool read,
     @TimestampConverter() required DateTime createdAt,

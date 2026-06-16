@@ -49,6 +49,16 @@ service cloud.firestore {
       allow update: if request.auth != null;
     }
 
+    // ── Join requests (approval-required games) ──
+    // Top-level so a player can list their own requests across games with a
+    // single-field query. Any authenticated user may read (host sees a game's
+    // requests; requester sees their own) and write (player creates the
+    // request; host updates status on approve/decline; player confirms/pays).
+    match /joinRequests/{requestId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
     // ── Bookings ──
     // Status updates (confirm/cancel) come from either the booker or the
     // owning business's user. Both are authenticated; we just check that

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:teamup/core/enums/booking_status.dart';
+import 'package:teamup/core/enums/game_status.dart';
 import 'package:teamup/core/firebase/firestore.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
 
@@ -66,13 +67,22 @@ class BookingService {
   /// Create a booking, refusing if a non-cancelled booking already overlaps
   /// the requested slot on the same pitch. Bookings are the source of truth
   /// for slot occupancy, so the overlap check runs inside a transaction.
-  Future<BookingModel> createBooking(BookingModel booking) async {
+  ///
+  /// Pass `force: true` to bypass the overlap check entirely — used by the
+  /// owner-side recurring flow where the operator has explicitly opted in
+  /// to overwrite/double-book.
+  Future<BookingModel> createBooking(BookingModel booking, {bool force = false}) async {
     if (!booking.endTime.isAfter(booking.startTime)) {
       throw ArgumentError('endTime must be after startTime');
     }
 
     final docRef = _ref.doc();
     final created = booking.copyWith(id: docRef.id);
+
+    if (force) {
+      await docRef.set(created.toJson());
+      return created;
+    }
 
     await _firestore.runTransaction((txn) async {
       // Firestore range queries are limited to one field, so we fetch any
@@ -98,11 +108,49 @@ class BookingService {
     return created;
   }
 
-  Future<void> cancelBooking(String id) {
-    return _ref.doc(id).update({'status': BookingStatus.cancelled.name});
+  /// Create a recurring weekly series. Bookings are written in a single
+  /// batch and share the same `recurrenceId`. The overlap check is
+  /// skipped — recurring is an explicit owner action with a force-create
+  /// policy decided at the product level.
+  Future<List<BookingModel>> createRecurringBookings(List<BookingModel> bookings, {required String recurrenceId}) async {
+    if (bookings.isEmpty) return const [];
+    final batch = _firestore.batch();
+    final created = <BookingModel>[];
+    for (final b in bookings) {
+      if (!b.endTime.isAfter(b.startTime)) {
+        throw ArgumentError('endTime must be after startTime');
+      }
+      final docRef = _ref.doc();
+      final withId = b.copyWith(id: docRef.id, recurrenceId: recurrenceId);
+      batch.set(docRef, withId.toJson());
+      created.add(withId);
+    }
+    await batch.commit();
+    return created;
   }
 
+  /// Cancel a booking, freeing the slot. If the booking is tied to an open
+  /// game, the game is cancelled in the same batch so its slot is released too
+  /// (the booking grid treats any non-cancelled game as occupying the slot).
+  Future<void> cancelBooking(String id) async {
+    final snap = await _ref.doc(id).get();
+    final now = Timestamp.fromDate(DateTime.now());
+
+    final batch = _firestore.batch();
+    batch.update(_ref.doc(id), {'status': BookingStatus.cancelled.name, 'cancelledAt': now});
+
+    final gameId = snap.exists ? (snap.data()?['gameId'] as String?) : null;
+    if (gameId != null) {
+      batch.update(_firestore.collection('games').doc(gameId), {'status': GameStatus.cancelled.name});
+    }
+
+    await batch.commit();
+  }
+
+  /// Owner-accepts a booking without payment. Sets `confirmedAt` so we
+  /// can render a timeline; `paidAt` stays null since no money changed
+  /// hands. The player-side payment flow will set both fields.
   Future<void> confirmBooking(String id) {
-    return _ref.doc(id).update({'status': BookingStatus.confirmed.name});
+    return _ref.doc(id).update({'status': BookingStatus.confirmed.name, 'confirmedAt': Timestamp.fromDate(DateTime.now())});
   }
 }
