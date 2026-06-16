@@ -74,18 +74,31 @@ class _OpenGamesViewState extends State<OpenGamesView> {
 
                 if (games.isEmpty) return const _EmptyGames();
 
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                  itemCount: games.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (_, i) {
-                    final g = games[i];
-                    return _GameCard(
-                      game: g,
-                      venue: venuesById[g.venueId],
-                      pitch: pitchesById[g.pitchId],
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => GameDetailScreen(gameId: g.id)),
+                // Two columns on desktop so cards don't stretch; one on mobile.
+                return LayoutBuilder(
+                  builder: (context, c) {
+                    const gap = 12.0;
+                    final cols = c.maxWidth >= 760 ? 2 : 1;
+                    final itemW = cols == 1 ? c.maxWidth - 40 : (c.maxWidth - 40 - gap) / 2;
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                      child: Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: [
+                          for (final g in games)
+                            SizedBox(
+                              width: itemW,
+                              child: _GameCard(
+                                game: g,
+                                venue: venuesById[g.venueId],
+                                pitch: pitchesById[g.pitchId],
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (_) => GameDetailScreen(gameId: g.id)),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     );
                   },

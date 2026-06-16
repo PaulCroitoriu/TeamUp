@@ -28,7 +28,26 @@ class _AppShellState extends State<AppShell> {
   bool _sidebarExpanded = true;
   final _pushService = PushService();
 
+  // On desktop each tab keeps its own navigator so detail pages open *inside*
+  // the content pane and the sidebar stays visible. Tabs are built lazily and
+  // kept alive once visited, preserving their navigation stack across switches.
+  final List<GlobalKey<NavigatorState>> _navKeys =
+      List.generate(4, (_) => GlobalKey<NavigatorState>());
+  final Set<int> _built = {0};
+
   bool get _isBusiness => widget.user.role == UserRole.business;
+
+  /// Switch tabs; re-tapping the active tab pops its stack back to the root.
+  void _select(int i) {
+    if (i == _index) {
+      _navKeys[i].currentState?.popUntil((r) => r.isFirst);
+      return;
+    }
+    setState(() {
+      _index = i;
+      _built.add(i);
+    });
+  }
 
   @override
   void initState() {
@@ -80,6 +99,7 @@ class _AppShellState extends State<AppShell> {
 
   Widget _buildShell(BuildContext context, bool isWide, ColorScheme colors, List<_Destination> destinations) {
     if (isWide) {
+      final screens = _screens;
       return Scaffold(
         body: Row(
           children: [
@@ -87,10 +107,21 @@ class _AppShellState extends State<AppShell> {
               expanded: _sidebarExpanded,
               selectedIndex: _index,
               destinations: destinations,
-              onSelected: (i) => setState(() => _index = i),
+              onSelected: _select,
               onToggle: () => setState(() => _sidebarExpanded = !_sidebarExpanded),
             ),
-            Expanded(child: _screens[_index]),
+            Expanded(
+              child: IndexedStack(
+                index: _index,
+                children: [
+                  for (var i = 0; i < destinations.length; i++)
+                    if (_built.contains(i))
+                      _TabNavigator(navigatorKey: _navKeys[i], child: screens[i])
+                    else
+                      const SizedBox.shrink(),
+                ],
+              ),
+            ),
           ],
         ),
       );
@@ -113,6 +144,26 @@ class _AppShellState extends State<AppShell> {
               label: d.label,
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// A per-tab nested navigator (desktop). Its root route renders the tab screen;
+/// detail pages pushed from within stay inside the content pane, leaving the
+/// sidebar in place.
+class _TabNavigator extends StatelessWidget {
+  const _TabNavigator({required this.navigatorKey, required this.child});
+  final GlobalKey<NavigatorState> navigatorKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Navigator(
+      key: navigatorKey,
+      onGenerateRoute: (settings) => MaterialPageRoute(
+        settings: settings,
+        builder: (_) => child,
       ),
     );
   }

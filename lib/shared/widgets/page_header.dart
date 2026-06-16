@@ -21,8 +21,10 @@ class PageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Larger, more confident header on desktop; compact on mobile.
+    final wide = MediaQuery.sizeOf(context).width >= 600;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      padding: EdgeInsets.fromLTRB(20, wide ? 22 : 16, 20, wide ? 14 : 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -32,15 +34,15 @@ class PageHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.6, color: TUColors.ink, height: 1.05),
+                  style: TextStyle(fontSize: wide ? 34 : 28, fontWeight: FontWeight.w800, letterSpacing: -0.7, color: TUColors.ink, height: 1.05),
                 ),
                 if (subtitle != null) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: wide ? 6 : 4),
                   Text(
                     subtitle!,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: TUColors.ink2, height: 1.3),
+                    style: TextStyle(fontSize: wide ? 15 : 13.5, fontWeight: FontWeight.w500, color: TUColors.ink2, height: 1.35),
                   ),
                 ],
               ],

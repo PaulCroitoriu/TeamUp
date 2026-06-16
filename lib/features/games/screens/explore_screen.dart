@@ -237,7 +237,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 final venues = venuesSnap.data ?? const <VenueModel>[];
                 final venuesById = {for (final v in venues) v.id: v};
 
-                return Column(
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1180),
+                    child: Column(
                   children: [
                     PageHeader(
                       title: 'Explore',
@@ -400,6 +403,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                     ),
                   ],
+                    ),
+                  ),
                 );
               },
             ),
@@ -428,32 +433,37 @@ class _ModeToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Compact, left-aligned on desktop; full-width on mobile.
+    final wide = MediaQuery.sizeOf(context).width >= 600;
+    final toggle = Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: TUColors.surface2,
+        borderRadius: BorderRadius.circular(TUColors.rPill),
+        border: Border.all(color: TUColors.line),
+      ),
+      child: Row(
+        children: [
+          _ModeSegment(
+            icon: Icons.stadium_outlined,
+            label: 'Pitches',
+            selected: !gamesMode,
+            onTap: () => onChanged(false),
+          ),
+          _ModeSegment(
+            icon: Icons.bolt_rounded,
+            label: 'Open games',
+            selected: gamesMode,
+            onTap: () => onChanged(true),
+          ),
+        ],
+      ),
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: TUColors.surface2,
-          borderRadius: BorderRadius.circular(TUColors.rPill),
-          border: Border.all(color: TUColors.line),
-        ),
-        child: Row(
-          children: [
-            _ModeSegment(
-              icon: Icons.stadium_outlined,
-              label: 'Pitches',
-              selected: !gamesMode,
-              onTap: () => onChanged(false),
-            ),
-            _ModeSegment(
-              icon: Icons.bolt_rounded,
-              label: 'Open games',
-              selected: gamesMode,
-              onTap: () => onChanged(true),
-            ),
-          ],
-        ),
-      ),
+      child: wide
+          ? Align(alignment: Alignment.centerLeft, child: SizedBox(width: 320, child: toggle))
+          : toggle,
     );
   }
 }
@@ -588,7 +598,14 @@ class _TopBar extends StatelessWidget {
           ),
           if (wide) ...[
             const SizedBox(width: 9),
-            Expanded(child: _SearchPill(onChanged: onSearchChanged)),
+            // Takes the remaining room but capped, so it never stretches across
+            // the whole desktop bar nor overflows a narrow one.
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: _SearchPill(onChanged: onSearchChanged),
+              ),
+            ),
           ],
         ],
       ),
@@ -603,7 +620,7 @@ class _SearchPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 180),
+      constraints: const BoxConstraints(minWidth: 120),
       height: 44,
       decoration: BoxDecoration(
         color: TUColors.surface,
@@ -1432,11 +1449,11 @@ class _FilterSheetState extends State<_FilterSheet> {
   @override
   Widget build(BuildContext context) {
     final mobile = isMobileWidth(context);
-    final today = DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    );
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // When the only relevant day is today (no future date picked), hours that
+    // have already passed can't be chosen.
+    final restrictPast = _dates.every((d) => d == today);
 
     return SafeArea(
       top: false,
@@ -1598,6 +1615,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                           _TimeChip(
                             hour: h,
                             selected: _hours.contains(h),
+                            enabled: !(restrictPast && h <= now.hour),
                             onTap: () => setState(() {
                               if (_hours.contains(h)) {
                                 _hours.remove(h);
@@ -1786,26 +1804,31 @@ class _TimeChip extends StatelessWidget {
     required this.hour,
     required this.selected,
     required this.onTap,
+    this.enabled = true,
   });
   final int hour;
   final bool selected;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: selected ? TUColors.brand : TUColors.surface2,
-      borderRadius: BorderRadius.circular(TUColors.rSm),
-      child: InkWell(
-        onTap: onTap,
+    return Opacity(
+      opacity: enabled ? 1 : 0.4,
+      child: Material(
+        color: selected ? TUColors.brand : TUColors.surface2,
         borderRadius: BorderRadius.circular(TUColors.rSm),
-        child: Center(
-          child: Text(
-            '${hour.toString().padLeft(2, '0')}:00',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : TUColors.ink2,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(TUColors.rSm),
+          child: Center(
+            child: Text(
+              '${hour.toString().padLeft(2, '0')}:00',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : TUColors.ink2,
+              ),
             ),
           ),
         ),
