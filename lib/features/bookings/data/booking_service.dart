@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:teamup/core/enums/booking_status.dart';
 import 'package:teamup/core/enums/game_status.dart';
+import 'package:teamup/core/enums/notification_type.dart';
 import 'package:teamup/core/firebase/firestore.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
+import 'package:teamup/features/notifications/models/notification_model.dart';
 
 class BookingConflictException implements Exception {
   const BookingConflictException(this.message);
@@ -135,13 +137,39 @@ class BookingService {
   Future<void> cancelBooking(String id) async {
     final snap = await _ref.doc(id).get();
     final now = Timestamp.fromDate(DateTime.now());
+    final gameId = snap.exists ? (snap.data()?['gameId'] as String?) : null;
+
+    // Read the game up front (for player notifications) before the batch.
+    final gameDoc = gameId != null ? await _firestore.collection('games').doc(gameId).get() : null;
 
     final batch = _firestore.batch();
     batch.update(_ref.doc(id), {'status': BookingStatus.cancelled.name, 'cancelledAt': now});
 
-    final gameId = snap.exists ? (snap.data()?['gameId'] as String?) : null;
     if (gameId != null) {
       batch.update(_firestore.collection('games').doc(gameId), {'status': GameStatus.cancelled.name});
+
+      // Notify everyone who joined (other than the host) that it's off.
+      final data = gameDoc?.data();
+      if (data != null) {
+        final hostId = data['hostId'] as String?;
+        final players = (data['playerIds'] as List?)?.cast<String>() ?? const <String>[];
+        for (final pid in players) {
+          if (pid == hostId) continue;
+          final nref = _firestore.collection('notifications').doc();
+          batch.set(
+            nref,
+            NotificationModel(
+              id: nref.id,
+              recipientId: pid,
+              type: NotificationType.bookingCancelled,
+              title: 'Game cancelled',
+              body: 'A game you joined was cancelled by the host',
+              gameId: gameId,
+              createdAt: DateTime.now(),
+            ).toJson(),
+          );
+        }
+      }
     }
 
     await batch.commit();

@@ -95,6 +95,10 @@ class GameDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               _RosterCard(game: game),
+              if (isMember && !isHost) ...[
+                const SizedBox(height: 14),
+                _LeaveButton(gameId: game.id, userId: userId, service: service),
+              ],
               if (isHost && game.requiresApproval) ...[
                 const SizedBox(height: 20),
                 const Text('Join requests', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: TUColors.ink)),
@@ -231,16 +235,18 @@ class _RequestsSection extends StatelessWidget {
     return StreamBuilder<List<JoinRequestModel>>(
       stream: service.streamGameRequests(gameId),
       builder: (context, snap) {
-        final pending = (snap.data ?? const <JoinRequestModel>[]).where((r) => r.status == JoinRequestStatus.pending).toList();
-        if (pending.isEmpty) {
+        // Confirmed players already appear in the roster; show everything else
+        // (pending to act on, approved awaiting payment, declined).
+        final visible = (snap.data ?? const <JoinRequestModel>[]).where((r) => r.status != JoinRequestStatus.confirmed).toList();
+        if (visible.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(color: TUColors.surface2, borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
-            child: const Text('No pending requests', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
+            child: const Text('No requests yet', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
           );
         }
         return Column(
-          children: [for (final r in pending) Padding(padding: const EdgeInsets.only(bottom: 10), child: _RequestTile(request: r, service: service))],
+          children: [for (final r in visible) Padding(padding: const EdgeInsets.only(bottom: 10), child: _RequestTile(request: r, service: service))],
         );
       },
     );
@@ -258,6 +264,13 @@ class _RequestTile extends StatefulWidget {
 
 class _RequestTileState extends State<_RequestTile> {
   bool _busy = false;
+
+  String get _subtitle => switch (widget.request.status) {
+    JoinRequestStatus.pending => 'Wants to join',
+    JoinRequestStatus.approved => 'Approved — waiting for payment',
+    JoinRequestStatus.declined => 'Request declined',
+    JoinRequestStatus.confirmed => 'Joined the game',
+  };
 
   Future<void> _decide(bool approve) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -296,17 +309,22 @@ class _RequestTileState extends State<_RequestTile> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Player · $short', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: TUColors.ink)),
-                Text('Pays with ${widget.request.paymentMethod.label}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
+                Text(_subtitle, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
               ],
             ),
           ),
-          if (_busy)
-            const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
-          else ...[
-            _IconAction(icon: Icons.close_rounded, color: TUColors.ink3, onTap: () => _decide(false)),
-            const SizedBox(width: 8),
-            _IconAction(icon: Icons.check_rounded, color: Colors.white, bg: TUColors.brand, onTap: () => _decide(true)),
-          ],
+          if (widget.request.status == JoinRequestStatus.pending) ...[
+            if (_busy)
+              const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+            else ...[
+              _IconAction(icon: Icons.close_rounded, color: TUColors.ink3, onTap: () => _decide(false)),
+              const SizedBox(width: 8),
+              _IconAction(icon: Icons.check_rounded, color: Colors.white, bg: TUColors.brand, onTap: () => _decide(true)),
+            ],
+          ] else if (widget.request.status == JoinRequestStatus.approved)
+            const _Pill(label: 'Awaiting pay', bg: TUColors.brandSoft, fg: TUColors.brand700)
+          else
+            const _Pill(label: 'Declined', bg: Color(0xFFFBEEE9), fg: Color(0xFFB23B2E)),
         ],
       ),
     );
@@ -598,6 +616,65 @@ class _PayOptionRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LeaveButton extends StatefulWidget {
+  const _LeaveButton({required this.gameId, required this.userId, required this.service});
+  final String gameId;
+  final String userId;
+  final GameService service;
+
+  @override
+  State<_LeaveButton> createState() => _LeaveButtonState();
+}
+
+class _LeaveButtonState extends State<_LeaveButton> {
+  bool _busy = false;
+
+  Future<void> _leave() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Leave this game?'),
+        content: const Text('Your spot reopens for someone else.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Stay')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Leave', style: TextStyle(color: Color(0xFFB23B2E)))),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.service.leaveGame(gameId: widget.gameId, userId: widget.userId);
+      if (mounted) nav.pop();
+    } catch (e, st) {
+      _log.e('Leave game failed', error: e, stackTrace: st);
+      messenger.showSnackBar(SnackBar(content: Text('Could not leave: $e')));
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _busy ? null : _leave,
+      icon: _busy
+          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.logout_rounded, size: 18),
+      label: const Text('Leave game'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFFB23B2E),
+        side: const BorderSide(color: Color(0xFFE7C3BC)),
+        minimumSize: const Size(double.infinity, 50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(TUColors.rMd)),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
       ),
     );
   }

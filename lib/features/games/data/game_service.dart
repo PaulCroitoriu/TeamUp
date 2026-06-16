@@ -174,6 +174,43 @@ class GameService {
     });
   }
 
+  /// A joined player leaves the game: removes them, frees a spot, reopens the
+  /// game if it was full, drops their request record, and notifies the host.
+  Future<void> leaveGame({required String gameId, required String userId}) async {
+    final gameRef = _games.doc(gameId);
+    final reqRef = _reqDoc(gameId, userId);
+    await _firestore.runTransaction((txn) async {
+      final gameSnap = await txn.get(gameRef);
+      if (!gameSnap.exists) throw const GameJoinException('This game no longer exists.');
+
+      final game = GameModel.fromFirestore(gameSnap);
+      if (game.hostId == userId) throw const GameJoinException("The host can't leave \u2014 cancel the booking instead.");
+      if (!game.playerIds.contains(userId)) throw const GameJoinException('You are not in this game.');
+
+      final filled = (game.spotsFilled - 1).clamp(1, game.capacity);
+      txn.update(gameRef, {
+        'playerIds': FieldValue.arrayRemove([userId]),
+        'spotsFilled': filled,
+        if (game.status == GameStatus.full) 'status': GameStatus.open.name,
+      });
+      txn.delete(reqRef);
+
+      final notifRef = _notifications.doc();
+      txn.set(
+        notifRef,
+        NotificationModel(
+          id: notifRef.id,
+          recipientId: game.hostId,
+          type: NotificationType.joinDeclined,
+          title: 'A player left',
+          body: 'A player left your game \u2014 a spot reopened',
+          gameId: gameId,
+          createdAt: DateTime.now(),
+        ).toJson(),
+      );
+    });
+  }
+
   /// Host declines a request and notifies the requester.
   Future<void> declineRequest({required String gameId, required String userId}) async {
     await _reqDoc(gameId, userId).update({
