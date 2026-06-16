@@ -4,7 +4,8 @@ import 'package:teamup/core/enums/booking_status.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
 import 'package:teamup/features/bookings/data/booking_service.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
-import 'package:teamup/features/notifications/screens/notifications_screen.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
+import 'package:teamup/shared/widgets/page_header.dart';
 import 'package:teamup/features/venues/data/venue_service.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
@@ -38,15 +39,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
-        final businessId = authState.maybeMap(authenticated: (s) => s.user.businessId, orElse: () => null);
+        final businessId = authState.maybeMap(
+          authenticated: (s) => s.user.businessId,
+          orElse: () => null,
+        );
         if (businessId == null) {
-          return const Scaffold(body: Center(child: Text('No business linked to this account')));
+          return const Scaffold(
+            body: Center(child: Text('No business linked to this account')),
+          );
         }
         return StreamBuilder<List<VenueModel>>(
           stream: _venueService.streamBusinessVenues(businessId),
           builder: (context, vSnap) {
             if (vSnap.connectionState == ConnectionState.waiting) {
-              return _shell(venues: const [], body: const Center(child: CircularProgressIndicator()));
+              return _shell(
+                venues: const [],
+                body: const Center(child: CircularProgressIndicator()),
+              );
             }
             final venues = vSnap.data ?? const <VenueModel>[];
             if (venues.isEmpty) {
@@ -54,7 +63,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             }
 
             final venuesById = {for (final v in venues) v.id: v};
-            final activeVenueId = _selectedVenueId != null && venuesById.containsKey(_selectedVenueId) ? _selectedVenueId! : venues.first.id;
+            final activeVenueId =
+                _selectedVenueId != null &&
+                    venuesById.containsKey(_selectedVenueId)
+                ? _selectedVenueId!
+                : venues.first.id;
 
             return _shell(
               venues: venues,
@@ -65,10 +78,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   if (pSnap.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  final venuePitches = (pSnap.data ?? const <PitchModel>[])
-                      .where((p) => p.active && p.venueId == activeVenueId)
-                      .toList()
-                    ..sort((a, b) => a.sport.value - b.sport.value);
+                  final venuePitches =
+                      (pSnap.data ?? const <PitchModel>[])
+                          .where((p) => p.active && p.venueId == activeVenueId)
+                          .toList()
+                        ..sort((a, b) => a.sport.value - b.sport.value);
 
                   return StreamBuilder<List<BookingModel>>(
                     stream: _bookingService.streamBusinessBookings(businessId),
@@ -85,11 +99,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                       return ScheduleView(
                         selectedDay: _selectedDay,
-                        onDaySelected: (d) => setState(() => _selectedDay = DateTime(d.year, d.month, d.day)),
+                        onDaySelected: (d) => setState(
+                          () => _selectedDay = DateTime(d.year, d.month, d.day),
+                        ),
                         venuesById: venuesById,
                         venuePitches: venuePitches,
                         venueDayBookings: venueDayBookings,
-                        bookingsLoading: bSnap.connectionState == ConnectionState.waiting,
+                        bookingsLoading:
+                            bSnap.connectionState == ConnectionState.waiting,
                       );
                     },
                   );
@@ -102,35 +119,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _shell({required List<VenueModel> venues, String? activeVenueId, required Widget body}) {
+  Widget _shell({
+    required List<VenueModel> venues,
+    String? activeVenueId,
+    required Widget body,
+  }) {
     final showVenueFilter = venues.length > 1 && activeVenueId != null;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        actions: [
-          const NotificationsBell(),
-          const SizedBox(width: 4),
-          Builder(
-            builder: (ctx) => IconButton.filledTonal(
-              tooltip: 'New booking',
-              icon: const Icon(Icons.add_rounded),
-              onPressed: () => openManualBookFromAppBar(ctx, selectedDay: _selectedDay),
+      backgroundColor: TUColors.bg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PageHeader(
+              title: 'Dashboard',
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Builder(
+                    builder: (ctx) => IconButton.filledTonal(
+                      tooltip: 'New booking',
+                      icon: const Icon(Icons.add_rounded),
+                      onPressed: () => openManualBookFromAppBar(
+                        ctx,
+                        selectedDay: _selectedDay,
+                      ),
+                    ),
+                  ),
+                  if (showVenueFilter) ...[
+                    const SizedBox(width: 8),
+                    VenueFilterButton(
+                      venues: venues,
+                      selectedId: activeVenueId,
+                      onSelected: (id) => setState(() => _selectedVenueId = id),
+                    ),
+                  ],
+                  const SizedBox(width: 8),
+                  const NotificationBell(),
+                ],
+              ),
             ),
-          ),
-          if (showVenueFilter) ...[
-            const SizedBox(width: 8),
-            VenueFilterButton(
-              venues: venues,
-              selectedId: activeVenueId,
-              onSelected: (id) => setState(() => _selectedVenueId = id),
-            ),
+            Expanded(child: body),
           ],
-          const SizedBox(width: 8),
-        ],
+        ),
       ),
-      body: body,
     );
   }
 }

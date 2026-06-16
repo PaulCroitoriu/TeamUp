@@ -8,7 +8,8 @@ import 'package:teamup/features/bookings/bloc/booking_bloc.dart';
 import 'package:teamup/features/bookings/data/booking_service.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
 import 'package:teamup/features/bookings/screens/booking_detail_screen.dart';
-import 'package:teamup/features/notifications/screens/notifications_screen.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
+import 'package:teamup/shared/widgets/page_header.dart';
 
 const _mobileBreakpoint = 600.0;
 
@@ -19,14 +20,21 @@ class ManageBookingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
-        final businessId = authState.maybeMap(authenticated: (s) => s.user.businessId, orElse: () => null);
+        final businessId = authState.maybeMap(
+          authenticated: (s) => s.user.businessId,
+          orElse: () => null,
+        );
 
         if (businessId == null) {
-          return const Scaffold(body: Center(child: Text('No business linked to this account')));
+          return const Scaffold(
+            body: Center(child: Text('No business linked to this account')),
+          );
         }
 
         return BlocProvider(
-          create: (_) => BookingBloc(bookingService: BookingService())..add(BookingEvent.loadBusinessBookings(businessId)),
+          create: (_) =>
+              BookingBloc(bookingService: BookingService())
+                ..add(BookingEvent.loadBusinessBookings(businessId)),
           child: const _BookingsShell(),
         );
       },
@@ -70,34 +78,44 @@ class _BookingsShellState extends State<_BookingsShell> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bookings'),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        actions: const [NotificationsBell(), SizedBox(width: 4)],
-      ),
-      body: SelectionArea(
-        child: BlocBuilder<BookingBloc, BookingState>(
-          builder: (context, state) {
-            return state.maybeMap(
-              loading: (_) => const Center(child: CircularProgressIndicator()),
-              loaded: (s) {
-                if (s.bookings.isEmpty) return const _EmptyState();
-                return _BookingsBody(
-                  bookings: s.bookings,
-                  statusFilter: _statusFilter,
-                  query: _query,
-                  onQuery: _setQuery,
-                  onToggleStatus: _toggleStatus,
-                  onClearFilters: _clearFilters,
-                );
-              },
-              error: (e) => Center(
-                child: Text(e.message, style: TextStyle(color: colors.error)),
+      backgroundColor: TUColors.bg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const PageHeader(title: 'Bookings'),
+            Expanded(
+              child: SelectionArea(
+                child: BlocBuilder<BookingBloc, BookingState>(
+                  builder: (context, state) {
+                    return state.maybeMap(
+                      loading: (_) =>
+                          const Center(child: CircularProgressIndicator()),
+                      loaded: (s) {
+                        if (s.bookings.isEmpty) return const _EmptyState();
+                        return _BookingsBody(
+                          bookings: s.bookings,
+                          statusFilter: _statusFilter,
+                          query: _query,
+                          onQuery: _setQuery,
+                          onToggleStatus: _toggleStatus,
+                          onClearFilters: _clearFilters,
+                        );
+                      },
+                      error: (e) => Center(
+                        child: Text(
+                          e.message,
+                          style: TextStyle(color: colors.error),
+                        ),
+                      ),
+                      orElse: () => const SizedBox.shrink(),
+                    );
+                  },
+                ),
               ),
-              orElse: () => const SizedBox.shrink(),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
@@ -145,25 +163,45 @@ class _BookingsBody extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 820),
         child: ListView(
-          padding: EdgeInsets.fromLTRB(hPad, isMobile ? 14 : 28, hPad, isMobile ? 24 : 40),
+          padding: EdgeInsets.fromLTRB(
+            hPad,
+            isMobile ? 14 : 28,
+            hPad,
+            isMobile ? 24 : 40,
+          ),
           children: [
             _Header(count: bookings.length),
             const SizedBox(height: 12),
             _BookingsSearch(initial: query, onChanged: onQuery),
             const SizedBox(height: 12),
-            _StatusChipsRow(counts: counts, selected: statusFilter, onToggle: onToggleStatus, onClear: onClearFilters),
+            _StatusChipsRow(
+              counts: counts,
+              selected: statusFilter,
+              onToggle: onToggleStatus,
+              onClear: onClearFilters,
+            ),
             const SizedBox(height: 22),
             if (filtered.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 60),
                 child: Center(
-                  child: Text('No bookings match this filter', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withAlpha(140))),
+                  child: Text(
+                    'No bookings match this filter',
+                    style: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withAlpha(140),
+                    ),
+                  ),
                 ),
               ),
             for (final group in groups) ...[
               _GroupHeader(label: group.label),
               const SizedBox(height: 10),
-              for (final b in group.bookings) ...[BookingCard(booking: b, showBooker: true), const SizedBox(height: 10)],
+              for (final b in group.bookings) ...[
+                BookingCard(booking: b, showBooker: true),
+                const SizedBox(height: 10),
+              ],
               SizedBox(height: isMobile ? 18 : 28),
             ],
           ],
@@ -185,14 +223,27 @@ class _Header extends StatelessWidget {
     final colors = theme.colorScheme;
     return Row(
       children: [
-        Text('Bookings', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+        Text(
+          'Bookings',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+          ),
+        ),
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(color: colors.primary.withAlpha(20), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(
+            color: colors.primary.withAlpha(20),
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Text(
             '$count',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: colors.primary),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: colors.primary,
+            ),
           ),
         ),
       ],
@@ -212,7 +263,9 @@ class _BookingsSearch extends StatefulWidget {
 }
 
 class _BookingsSearchState extends State<_BookingsSearch> {
-  late final TextEditingController _controller = TextEditingController(text: widget.initial);
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
   Timer? _debounce;
 
   @override
@@ -248,23 +301,38 @@ class _BookingsSearchState extends State<_BookingsSearch> {
         style: const TextStyle(fontSize: 13),
         decoration: InputDecoration(
           hintText: 'Search booking #…',
-          hintStyle: TextStyle(fontSize: 13, color: colors.onSurface.withAlpha(110)),
+          hintStyle: TextStyle(
+            fontSize: 13,
+            color: colors.onSurface.withAlpha(110),
+          ),
           prefixIcon: const Icon(Icons.search_rounded, size: 16),
-          prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 32,
+            minHeight: 32,
+          ),
           suffixIcon: _controller.text.isEmpty
               ? null
               : IconButton(
                   splashRadius: 16,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                   icon: const Icon(Icons.close_rounded, size: 16),
                   onPressed: _clear,
                 ),
           isDense: true,
           filled: true,
           fillColor: colors.onSurface.withAlpha(8),
-          contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 6,
+            horizontal: 8,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
         ),
       ),
     );
@@ -274,7 +342,11 @@ class _BookingsSearchState extends State<_BookingsSearch> {
 // ─── Status filter chips ────────────────────────────────────
 
 class _StatusCounts {
-  const _StatusCounts({required this.pending, required this.confirmed, required this.cancelled});
+  const _StatusCounts({
+    required this.pending,
+    required this.confirmed,
+    required this.cancelled,
+  });
   final int pending;
   final int confirmed;
   final int cancelled;
@@ -299,7 +371,12 @@ class _StatusCounts {
 }
 
 class _StatusChipsRow extends StatelessWidget {
-  const _StatusChipsRow({required this.counts, required this.selected, required this.onToggle, required this.onClear});
+  const _StatusChipsRow({
+    required this.counts,
+    required this.selected,
+    required this.onToggle,
+    required this.onClear,
+  });
 
   final _StatusCounts counts;
   final Set<BookingStatus> selected;
@@ -344,7 +421,13 @@ class _StatusChipsRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: Size.zero,
               ),
-              child: Text('Clear', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withAlpha(160))),
+              child: Text(
+                'Clear',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurface.withAlpha(160),
+                ),
+              ),
             ),
           ],
         ],
@@ -354,7 +437,13 @@ class _StatusChipsRow extends StatelessWidget {
 }
 
 class _StatusFilterChip extends StatelessWidget {
-  const _StatusFilterChip({required this.label, required this.count, required this.color, required this.selected, required this.onTap});
+  const _StatusFilterChip({
+    required this.label,
+    required this.count,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
   final int count;
@@ -380,23 +469,36 @@ class _StatusFilterChip extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: BoxDecoration(color: selected ? Colors.white : color, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: selected ? Colors.white : color,
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: 6),
               Text(
                 label,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: fg,
+                ),
               ),
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
-                  color: selected ? Colors.white.withAlpha(48) : colors.onSurface.withAlpha(15),
+                  color: selected
+                      ? Colors.white.withAlpha(48)
+                      : colors.onSurface.withAlpha(15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '$count',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: fg),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
                 ),
               ),
             ],
@@ -410,7 +512,11 @@ class _StatusFilterChip extends StatelessWidget {
 // ─── Date grouping ──────────────────────────────────────────
 
 class _BookingGroup {
-  const _BookingGroup({required this.label, required this.bookings, required this.order});
+  const _BookingGroup({
+    required this.label,
+    required this.bookings,
+    required this.order,
+  });
   final String label;
   final List<BookingModel> bookings;
   final int order; // For sorting groups
@@ -479,9 +585,17 @@ class _GroupHeader extends StatelessWidget {
       padding: const EdgeInsets.only(top: 4, bottom: 6),
       child: Row(
         children: [
-          Text(label, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2)),
+          Text(
+            label,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+            ),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: Container(height: 1, color: colors.onSurface.withAlpha(20))),
+          Expanded(
+            child: Container(height: 1, color: colors.onSurface.withAlpha(20)),
+          ),
         ],
       ),
     );
@@ -507,16 +621,30 @@ class _EmptyState extends StatelessWidget {
             Container(
               width: 80,
               height: 80,
-              decoration: BoxDecoration(color: colors.primary.withAlpha(15), shape: BoxShape.circle),
-              child: Icon(Icons.calendar_today_outlined, size: 36, color: colors.primary.withAlpha(140)),
+              decoration: BoxDecoration(
+                color: colors.primary.withAlpha(15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.calendar_today_outlined,
+                size: 36,
+                color: colors.primary.withAlpha(140),
+              ),
             ),
             const SizedBox(height: 20),
-            Text('No bookings yet', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'No bookings yet',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
               'Bookings made on your pitches will appear here.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface.withAlpha(150)),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurface.withAlpha(150),
+              ),
             ),
           ],
         ),
@@ -528,15 +656,33 @@ class _EmptyState extends StatelessWidget {
 // ─── BookingCard (exported, also used in MyGames) ───────────
 
 class BookingCard extends StatelessWidget {
-  const BookingCard({super.key, required this.booking, this.showBooker = false});
+  const BookingCard({
+    super.key,
+    required this.booking,
+    this.showBooker = false,
+  });
 
   final BookingModel booking;
   final bool showBooker;
 
-  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  String _time(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  String _time(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
@@ -546,19 +692,31 @@ class BookingCard extends StatelessWidget {
     final start = booking.startTime;
     final dimmed = booking.status == BookingStatus.cancelled;
     final now = DateTime.now();
-    final isLive = booking.status != BookingStatus.cancelled && !start.isAfter(now) && booking.endTime.isAfter(now);
+    final isLive =
+        booking.status != BookingStatus.cancelled &&
+        !start.isAfter(now) &&
+        booking.endTime.isAfter(now);
 
     return Material(
       color: colors.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: booking.id))),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BookingDetailScreen(bookingId: booking.id),
+          ),
+        ),
         borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: isLive ? colors.primary.withAlpha(140) : colors.onSurface.withAlpha(20), width: isLive ? 1.5 : 1),
+            border: Border.all(
+              color: isLive
+                  ? colors.primary.withAlpha(140)
+                  : colors.onSurface.withAlpha(20),
+              width: isLive ? 1.5 : 1,
+            ),
           ),
           child: Opacity(
             opacity: dimmed ? 0.6 : 1,
@@ -577,10 +735,16 @@ class BookingCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               '${_time(start)} – ${_time(booking.endTime)}',
-                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.2,
+                              ),
                             ),
                           ),
-                          if (isLive) ...[const _LivePill(), const SizedBox(width: 6)],
+                          if (isLive) ...[
+                            const _LivePill(),
+                            const SizedBox(width: 6),
+                          ],
                           _StatusPill(status: booking.status),
                         ],
                       ),
@@ -591,28 +755,45 @@ class BookingCard extends StatelessWidget {
                         children: [
                           Text(
                             '$priceAmount ${booking.currency}',
-                            style: theme.textTheme.bodyLarge?.copyWith(color: colors.primary, fontWeight: FontWeight.w800),
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: colors.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                           if (showBooker) ...[
                             const SizedBox(width: 8),
-                            Icon(Icons.person_outline_rounded, size: 13, color: colors.onSurface.withAlpha(120)),
+                            Icon(
+                              Icons.person_outline_rounded,
+                              size: 13,
+                              color: colors.onSurface.withAlpha(120),
+                            ),
                             const SizedBox(width: 3),
                             Text(
                               '#${booking.bookerId.substring(0, 6)}',
-                              style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(140), fontWeight: FontWeight.w600),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurface.withAlpha(140),
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                           const Spacer(),
-                          Icon(Icons.chevron_right_rounded, color: colors.onSurface.withAlpha(140)),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: colors.onSurface.withAlpha(140),
+                          ),
                         ],
                       ),
-                      if (booking.notes != null && booking.notes!.isNotEmpty) ...[
+                      if (booking.notes != null &&
+                          booking.notes!.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Text(
                           booking.notes!,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(150), fontStyle: FontStyle.italic),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurface.withAlpha(150),
+                            fontStyle: FontStyle.italic,
+                          ),
                         ),
                       ],
                     ],
@@ -637,23 +818,41 @@ class _DateBlock extends StatelessWidget {
     return Container(
       width: 56,
       padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(color: colors.primary.withAlpha(15), borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: colors.primary.withAlpha(15),
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             BookingCard._weekdays[date.weekday - 1],
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: colors.primary.withAlpha(180), letterSpacing: 0.4),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: colors.primary.withAlpha(180),
+              letterSpacing: 0.4,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             '${date.day}',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: colors.primary, height: 1.0),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: colors.primary,
+              height: 1.0,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             BookingCard._months[date.month - 1],
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: colors.primary.withAlpha(160), letterSpacing: 0.4),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: colors.primary.withAlpha(160),
+              letterSpacing: 0.4,
+            ),
           ),
         ],
       ),
@@ -669,19 +868,30 @@ class _LivePill extends StatelessWidget {
     final color = Theme.of(context).colorScheme.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 6,
             height: 6,
-            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
           ),
           const SizedBox(width: 5),
           const Text(
             'LIVE',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.6),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: 0.6,
+            ),
           ),
         ],
       ),
@@ -703,7 +913,10 @@ class _StatusPill extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withAlpha(22), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: color.withAlpha(22),
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -715,7 +928,12 @@ class _StatusPill extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             status.label,
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color, letterSpacing: 0.3),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: color,
+              letterSpacing: 0.3,
+            ),
           ),
         ],
       ),
