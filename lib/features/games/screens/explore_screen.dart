@@ -35,6 +35,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   Set<Sport> _sports = {};
   String? _city;
+  String _search = '';
   Set<DateTime> _filterDates = {};
   Set<int> _filterHours = {};
   bool _openSpotsOnly = false;
@@ -247,6 +248,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       },
                       onFiltersTap: () => _openFiltersSheet(venues),
                       filterCount: _filterCount,
+                      onSearchChanged: (q) => setState(() => _search = q),
                     ),
                     if (_hasAnyFilter)
                       _ActiveFiltersStrip(
@@ -305,6 +307,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             pitches = pitches.where((p) {
                               final v = venuesById[p.venueId];
                               return v != null && v.city == _city;
+                            }).toList();
+                          }
+
+                          if (_search.trim().isNotEmpty) {
+                            final q = _search.trim().toLowerCase();
+                            pitches = pitches.where((p) {
+                              final v = venuesById[p.venueId];
+                              return p.name.toLowerCase().contains(q) ||
+                                  (v?.name.toLowerCase().contains(q) ??
+                                      false) ||
+                                  (v?.city.toLowerCase().contains(q) ?? false);
                             }).toList();
                           }
 
@@ -398,12 +411,14 @@ class _TopBar extends StatelessWidget {
     required this.onSportsChanged,
     required this.onFiltersTap,
     required this.filterCount,
+    required this.onSearchChanged,
   });
 
   final Set<Sport> sports;
   final ValueChanged<Set<Sport>> onSportsChanged;
   final VoidCallback onFiltersTap;
   final int filterCount;
+  final ValueChanged<String> onSearchChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -478,7 +493,7 @@ class _TopBar extends StatelessWidget {
           ),
           if (wide) ...[
             const SizedBox(width: 9),
-            const Expanded(child: _SearchPill()),
+            Expanded(child: _SearchPill(onChanged: onSearchChanged)),
           ],
         ],
       ),
@@ -487,30 +502,46 @@ class _TopBar extends StatelessWidget {
 }
 
 class _SearchPill extends StatelessWidget {
-  const _SearchPill();
+  const _SearchPill({required this.onChanged});
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       constraints: const BoxConstraints(minWidth: 180),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+      height: 44,
       decoration: BoxDecoration(
         color: TUColors.surface,
         border: Border.all(color: TUColors.line, width: 1.5),
         borderRadius: BorderRadius.circular(TUColors.rPill),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.search_rounded, size: 18, color: TUColors.ink3),
-          SizedBox(width: 10),
-          Text(
-            'Search venues, clubs…',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: TUColors.ink3,
+          const SizedBox(width: 18),
+          const Icon(Icons.search_rounded, size: 18, color: TUColors.ink3),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              onChanged: onChanged,
+              textAlignVertical: TextAlignVertical.center,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: TUColors.ink,
+              ),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Search venues, clubs…',
+                hintStyle: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: TUColors.ink3,
+                ),
+              ),
             ),
           ),
+          const SizedBox(width: 14),
         ],
       ),
     );
