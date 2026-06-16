@@ -401,6 +401,9 @@ class _DetailsPanel extends StatelessWidget {
           ),
         ],
 
+        const SizedBox(height: 12),
+        _BookingTimeline(booking: booking),
+
         if (_canConfirm || _canCancel) ...[
           const SizedBox(height: 24),
           Row(
@@ -471,6 +474,57 @@ class _Hero extends StatelessWidget {
 
 // ─── Status banner ──────────────────────────────────────────
 
+class _BookingTimeline extends StatelessWidget {
+  const _BookingTimeline({required this.booking});
+  final BookingModel booking;
+
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  String _stamp(DateTime d) {
+    final h = d.hour.toString().padLeft(2, '0');
+    final m = d.minute.toString().padLeft(2, '0');
+    return '${d.day} ${_months[d.month - 1]} ${d.year} · $h:$m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    final entries = <(IconData, String, DateTime?, Color)>[
+      (Icons.add_circle_outline, 'Created', booking.createdAt, colors.onSurface.withAlpha(160)),
+      if (booking.confirmedAt != null) (Icons.check_circle_outline, 'Confirmed', booking.confirmedAt, const Color(0xFF1E7E3F)),
+      if (booking.paidAt != null) (Icons.payments_outlined, 'Paid', booking.paidAt, colors.primary),
+      if (booking.cancelledAt != null) (Icons.cancel_outlined, 'Cancelled', booking.cancelledAt, colors.error),
+    ];
+
+    return _SectionCard(
+      children: [
+        Text(
+          'Timeline',
+          style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700, color: colors.onSurface.withAlpha(170), letterSpacing: 0.5),
+        ),
+        const SizedBox(height: 10),
+        for (var i = 0; i < entries.length; i++) ...[
+          Row(
+            children: [
+              Icon(entries[i].$1, size: 16, color: entries[i].$4),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  entries[i].$2,
+                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700, color: colors.onSurface),
+                ),
+              ),
+              Text(_stamp(entries[i].$3!), style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(150))),
+            ],
+          ),
+          if (i < entries.length - 1) const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
 class _StatusBanner extends StatelessWidget {
   const _StatusBanner({required this.status});
   final BookingStatus status;
@@ -479,7 +533,7 @@ class _StatusBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final (color, icon, label) = switch (status) {
-      BookingStatus.pending => (colors.secondary, Icons.hourglass_top_rounded, 'Awaiting confirmation'),
+      BookingStatus.pending => (colors.secondary, Icons.hourglass_top_rounded, 'Awaiting payment'),
       BookingStatus.confirmed => (const Color(0xFF34A853), Icons.check_circle_rounded, 'Confirmed'),
       BookingStatus.cancelled => (colors.error, Icons.cancel_rounded, 'Cancelled'),
     };

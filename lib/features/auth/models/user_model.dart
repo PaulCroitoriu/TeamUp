@@ -25,6 +25,10 @@ abstract class UserModel with _$UserModel {
     String? businessId,
     String? photoUrl,
 
+    /// Optional phone. Used to look up existing players when an owner is
+    /// booking on their behalf over the phone.
+    String? phone,
+
     /// FCM device tokens for sending push notifications. Each device adds
     /// its own token on sign-in and is responsible for cleaning up its own
     /// token on sign-out / when the token rotates.

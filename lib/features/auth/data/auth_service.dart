@@ -93,4 +93,15 @@ class AuthService {
   Future<void> signOut() async {
     await _auth.signOut();
   }
+
+  /// Look up a user by phone number for the owner-side "ad-hoc booking"
+  /// flow. Returns null if no match. The query is exact-match on the
+  /// stored `phone` field; normalise on the caller side if needed.
+  Future<UserModel?> findUserByPhone(String phone) async {
+    final trimmed = phone.trim();
+    if (trimmed.isEmpty) return null;
+    final snap = await _usersRef.where('phone', isEqualTo: trimmed).limit(1).get();
+    if (snap.docs.isEmpty) return null;
+    return UserModel.fromFirestore(snap.docs.first);
+  }
 }

@@ -1,5 +1,5 @@
 enum BookingStatus {
-  pending(1, 'Pending'),
+  pending(1, 'Awaiting payment'),
   confirmed(2, 'Confirmed'),
   cancelled(3, 'Cancelled');
 
