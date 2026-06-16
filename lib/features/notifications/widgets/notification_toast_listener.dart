@@ -94,6 +94,9 @@ class _NotificationToastListenerState extends State<NotificationToastListener> {
     NotificationType.bookingConfirmed => Icons.check_circle_outline_rounded,
     NotificationType.bookingCancelled => Icons.cancel_outlined,
     NotificationType.newMessage => Icons.chat_bubble_outline_rounded,
+    NotificationType.joinRequest => Icons.person_add_alt_1_outlined,
+    NotificationType.joinApproved => Icons.how_to_reg_outlined,
+    NotificationType.joinDeclined => Icons.person_off_outlined,
   };
 
   void _show(NotificationModel n) {

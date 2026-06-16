@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:teamup/core/enums/notification_type.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
 import 'package:teamup/features/bookings/screens/booking_detail_screen.dart';
+import 'package:teamup/features/games/screens/game_detail_screen.dart';
 import 'package:teamup/features/notifications/data/notification_service.dart';
 import 'package:teamup/features/notifications/models/notification_model.dart';
 
@@ -72,6 +73,9 @@ class _NotificationTile extends StatelessWidget {
     NotificationType.bookingConfirmed => Icons.check_circle_outline_rounded,
     NotificationType.bookingCancelled => Icons.cancel_outlined,
     NotificationType.newMessage => Icons.chat_bubble_outline_rounded,
+    NotificationType.joinRequest => Icons.person_add_alt_1_outlined,
+    NotificationType.joinApproved => Icons.how_to_reg_outlined,
+    NotificationType.joinDeclined => Icons.person_off_outlined,
   };
 
   @override
@@ -88,7 +92,9 @@ class _NotificationTile extends StatelessWidget {
             await service.markRead(notification.id);
           }
           if (!context.mounted) return;
-          if (notification.bookingId != null) {
+          if (notification.gameId != null) {
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => GameDetailScreen(gameId: notification.gameId!)));
+          } else if (notification.bookingId != null) {
             Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: notification.bookingId!)));
           }
         },
