@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:teamup/features/venues/screens/dashboard/stats.dart';
 
 class KpiCardsRow extends StatelessWidget {
-  const KpiCardsRow({super.key, required this.stats});
+  const KpiCardsRow({super.key, required this.stats, this.scopeLabel = 'today'});
   final DayStats stats;
+
+  /// "today" / "this month" / "this year" — used in card footnotes.
+  final String scopeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +23,7 @@ class KpiCardsRow extends StatelessWidget {
         label: 'Revenue',
         value: '${stats.revenueRon} RON',
         icon: Icons.payments_rounded,
-        footnote: 'Confirmed bookings today',
+        footnote: 'Confirmed · $scopeLabel',
       ),
       _KpiCard(
         label: 'Bookings',

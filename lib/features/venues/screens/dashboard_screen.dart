@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:teamup/core/enums/booking_status.dart';
+import 'package:teamup/core/enums/sport.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
+import 'package:teamup/features/venues/screens/dashboard/stats.dart';
 import 'package:teamup/features/bookings/data/booking_service.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
 import 'package:teamup/core/theme/design_tokens.dart';
@@ -10,7 +12,6 @@ import 'package:teamup/features/venues/data/venue_service.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
 import 'package:teamup/features/venues/screens/dashboard/schedule_view.dart';
-import 'package:teamup/features/venues/screens/dashboard/shared.dart';
 import 'package:teamup/features/venues/screens/dashboard/widgets/empty_venues.dart';
 import 'package:teamup/features/venues/screens/dashboard/widgets/manual_book_sheet.dart';
 import 'package:teamup/features/venues/screens/dashboard/widgets/venue_filter_button.dart';
@@ -29,6 +30,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _bookingService = BookingService();
   late DateTime _selectedDay = _today();
   String? _selectedVenueId;
+  StatsPeriod _period = StatsPeriod.day;
+  Sport? _sport;
 
   static DateTime _today() {
     final n = DateTime.now();
@@ -88,10 +91,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     stream: _bookingService.streamBusinessBookings(businessId),
                     builder: (context, bSnap) {
                       final allBookings = bSnap.data ?? const <BookingModel>[];
-                      final venueDayBookings = allBookings
+                      // All non-cancelled bookings for this venue (any date) —
+                      // the body derives the day schedule and range telemetry.
+                      final venueBookings = allBookings
                           .where(
                             (b) =>
-                                sameDay(b.startTime, _selectedDay) &&
                                 b.status != BookingStatus.cancelled &&
                                 b.venueId == activeVenueId,
                           )
@@ -102,9 +106,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         onDaySelected: (d) => setState(
                           () => _selectedDay = DateTime(d.year, d.month, d.day),
                         ),
+                        period: _period,
+                        onPeriodChanged: (p) => setState(() => _period = p),
+                        sportFilter: _sport,
+                        onSportChanged: (s) => setState(() => _sport = s),
                         venuesById: venuesById,
                         venuePitches: venuePitches,
-                        venueDayBookings: venueDayBookings,
+                        venueBookings: venueBookings,
                         bookingsLoading:
                             bSnap.connectionState == ConnectionState.waiting,
                       );

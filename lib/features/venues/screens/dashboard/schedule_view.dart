@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:teamup/core/enums/sport.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
+import 'package:teamup/core/theme/sport_tile.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
@@ -10,24 +13,36 @@ import 'package:teamup/features/venues/screens/dashboard/widgets/epg_schedule.da
 import 'package:teamup/features/venues/screens/dashboard/widgets/kpi_cards.dart';
 import 'package:teamup/features/venues/screens/dashboard/widgets/section.dart';
 
-/// Dashboard body for one venue. Layout priority:
-///   Date strip → Schedule (the main thing) → KPIs / Available now beneath.
+/// Dashboard body for one venue:
+///   Overview (occupancy + revenue, Day/Month/Year) → Schedule (EPG, by sport).
 class ScheduleView extends StatelessWidget {
   const ScheduleView({
     super.key,
     required this.selectedDay,
     required this.onDaySelected,
+    required this.period,
+    required this.onPeriodChanged,
+    required this.sportFilter,
+    required this.onSportChanged,
     required this.venuesById,
     required this.venuePitches,
-    required this.venueDayBookings,
+    required this.venueBookings,
     required this.bookingsLoading,
   });
 
   final DateTime selectedDay;
   final ValueChanged<DateTime> onDaySelected;
+  final StatsPeriod period;
+  final ValueChanged<StatsPeriod> onPeriodChanged;
+  final Sport? sportFilter;
+  final ValueChanged<Sport?> onSportChanged;
   final Map<String, VenueModel> venuesById;
+
+  /// All active pitches for the venue (sorted by sport).
   final List<PitchModel> venuePitches;
-  final List<BookingModel> venueDayBookings;
+
+  /// All non-cancelled bookings for the venue (any date).
+  final List<BookingModel> venueBookings;
   final bool bookingsLoading;
 
   @override
@@ -37,12 +52,18 @@ class ScheduleView extends StatelessWidget {
     final hPad = isMobile ? 14.0 : 24.0;
     final isToday = sameDay(selectedDay, DateTime.now());
 
-    final stats = computeStats(
-      bookings: venueDayBookings,
+    final dayBookings = venueBookings.where((b) => sameDay(b.startTime, selectedDay)).toList();
+    final (start, end) = periodRange(period, selectedDay);
+    final stats = computeRangeStats(
+      bookings: venueBookings,
       pitches: venuePitches,
       venues: venuesById,
-      day: selectedDay,
+      start: start,
+      end: end,
     );
+
+    final sports = <Sport>{for (final p in venuePitches) p.sport}.toList()..sort((a, b) => a.value - b.value);
+    final shownPitches = sportFilter == null ? venuePitches : venuePitches.where((p) => p.sport == sportFilter).toList();
 
     return Center(
       child: ConstrainedBox(
@@ -50,8 +71,23 @@ class ScheduleView extends StatelessWidget {
         child: ListView(
           padding: EdgeInsets.fromLTRB(hPad, isMobile ? 12 : 20, hPad, isMobile ? 28 : 40),
           children: [
-            DateStrip(selected: selectedDay, onSelected: onDaySelected),
+            // ── Overview: occupancy + revenue, day / month / year ──
+            Section(
+              title: 'Overview',
+              titleIcon: Icons.insights_rounded,
+              action: _PeriodToggle(period: period, onChanged: onPeriodChanged),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _PeriodNav(period: period, day: selectedDay, onChanged: onDaySelected),
+                  const SizedBox(height: 14),
+                  KpiCardsRow(stats: stats, scopeLabel: _scopeLabel(period)),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
+
+            // ── Schedule (EPG) for the selected day, filterable by sport ──
             if (venuePitches.isEmpty)
               Section(
                 title: 'Schedule',
@@ -67,21 +103,37 @@ class ScheduleView extends StatelessWidget {
                 titleIcon: Icons.tv_rounded,
                 action: _LegendDots(),
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                child: EpgSchedule(
-                  pitches: venuePitches,
-                  venues: venuesById,
-                  bookings: venueDayBookings,
-                  day: selectedDay,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (sports.length > 1) ...[
+                      _SportFilter(sports: sports, selected: sportFilter, onChanged: onSportChanged),
+                      const SizedBox(height: 12),
+                    ],
+                    DateStrip(selected: selectedDay, onSelected: onDaySelected),
+                    const SizedBox(height: 12),
+                    if (shownPitches.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 28),
+                        child: Center(child: Text('No pitches for this sport', style: TextStyle(color: TUColors.ink3))),
+                      )
+                    else
+                      EpgSchedule(
+                        pitches: shownPitches,
+                        venues: venuesById,
+                        bookings: dayBookings,
+                        day: selectedDay,
+                      ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 18),
-            KpiCardsRow(stats: stats),
-            if (isToday) ...[
+
+            if (isToday && shownPitches.isNotEmpty) ...[
               const SizedBox(height: 14),
               AvailableNowCard(
-                pitches: venuePitches,
+                pitches: shownPitches,
                 venues: venuesById,
-                bookings: venueDayBookings,
+                bookings: dayBookings,
                 day: selectedDay,
               ),
             ],
@@ -97,16 +149,192 @@ class ScheduleView extends StatelessWidget {
   }
 }
 
+String _scopeLabel(StatsPeriod p) => switch (p) {
+  StatsPeriod.day => 'today',
+  StatsPeriod.month => 'this month',
+  StatsPeriod.year => 'this year',
+};
+
+// ─── Period toggle (Day / Month / Year) ─────────────────────
+
+class _PeriodToggle extends StatelessWidget {
+  const _PeriodToggle({required this.period, required this.onChanged});
+  final StatsPeriod period;
+  final ValueChanged<StatsPeriod> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget seg(String label, StatsPeriod p) {
+      final selected = period == p;
+      return Material(
+        color: selected ? TUColors.brand : Colors.transparent,
+        borderRadius: BorderRadius.circular(TUColors.rPill),
+        child: InkWell(
+          onTap: () => onChanged(p),
+          borderRadius: BorderRadius.circular(TUColors.rPill),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: selected ? Colors.white : TUColors.ink2),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: TUColors.surface2,
+        borderRadius: BorderRadius.circular(TUColors.rPill),
+        border: Border.all(color: TUColors.line),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [seg('Day', StatsPeriod.day), seg('Month', StatsPeriod.month), seg('Year', StatsPeriod.year)],
+      ),
+    );
+  }
+}
+
+// ─── Period navigation (‹ label ›) ──────────────────────────
+
+class _PeriodNav extends StatelessWidget {
+  const _PeriodNav({required this.period, required this.day, required this.onChanged});
+  final StatsPeriod period;
+  final DateTime day;
+  final ValueChanged<DateTime> onChanged;
+
+  static const _wd = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const _mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  static const _monFull = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  DateTime _shift(int dir) => switch (period) {
+    StatsPeriod.day => DateTime(day.year, day.month, day.day + dir),
+    StatsPeriod.month => DateTime(day.year, day.month + dir, 1),
+    StatsPeriod.year => DateTime(day.year + dir, 1, 1),
+  };
+
+  String get _label => switch (period) {
+    StatsPeriod.day => sameDay(day, DateTime.now()) ? 'Today' : '${_wd[day.weekday - 1]} ${day.day} ${_mon[day.month - 1]} ${day.year}',
+    StatsPeriod.month => '${_monFull[day.month - 1]} ${day.year}',
+    StatsPeriod.year => '${day.year}',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _NavBtn(icon: Icons.chevron_left_rounded, onTap: () => onChanged(_shift(-1))),
+        Expanded(
+          child: Center(
+            child: Text(_label, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: TUColors.ink)),
+          ),
+        ),
+        _NavBtn(icon: Icons.chevron_right_rounded, onTap: () => onChanged(_shift(1))),
+      ],
+    );
+  }
+}
+
+class _NavBtn extends StatelessWidget {
+  const _NavBtn({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: TUColors.surface2,
+      borderRadius: BorderRadius.circular(TUColors.rMd),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
+          child: Icon(icon, size: 20, color: TUColors.ink2),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Sport filter chips (EPG) ───────────────────────────────
+
+class _SportFilter extends StatelessWidget {
+  const _SportFilter({required this.sports, required this.selected, required this.onChanged});
+  final List<Sport> sports;
+  final Sport? selected;
+  final ValueChanged<Sport?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _Chip(label: 'All', active: selected == null, onTap: () => onChanged(null)),
+          for (final s in sports) ...[
+            const SizedBox(width: 8),
+            _Chip(label: s.label, sport: s, active: selected == s, onTap: () => onChanged(selected == s ? null : s)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.active, required this.onTap, this.sport});
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final Sport? sport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: active ? TUColors.brand : TUColors.surface2,
+      borderRadius: BorderRadius.circular(TUColors.rPill),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(TUColors.rPill),
+        child: Container(
+          padding: EdgeInsets.fromLTRB(sport == null ? 14 : 10, 0, 14, 0),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(TUColors.rPill),
+            border: Border.all(color: active ? TUColors.brand : TUColors.line),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (sport != null) ...[
+                SportGlyph(sport: sport!, size: 15, color: active ? Colors.white : sport!.color),
+                const SizedBox(width: 6),
+              ],
+              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: active ? Colors.white : TUColors.ink2)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _LegendDots extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     Widget dot(Color c, String l) => Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
         const SizedBox(width: 4),
-        Text(l, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: colors.onSurface.withAlpha(160))),
+        Text(l, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: TUColors.ink3)),
       ],
     );
     return Row(
