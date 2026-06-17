@@ -12,6 +12,7 @@ _ConversationModel _$ConversationModelFromJson(Map<String, dynamic> json) =>
       kind: $enumDecode(_$ConversationKindEnumMap, json['kind']),
       bookingId: json['bookingId'] as String?,
       gameId: json['gameId'] as String?,
+      title: json['title'] as String?,
       participantIds:
           (json['participantIds'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -31,6 +32,7 @@ Map<String, dynamic> _$ConversationModelToJson(_ConversationModel instance) =>
       'kind': _$ConversationKindEnumMap[instance.kind]!,
       'bookingId': instance.bookingId,
       'gameId': instance.gameId,
+      'title': instance.title,
       'participantIds': instance.participantIds,
       'lastMessageText': instance.lastMessageText,
       'lastMessageSenderId': instance.lastMessageSenderId,

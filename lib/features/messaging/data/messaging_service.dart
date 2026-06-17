@@ -19,6 +19,16 @@ class MessagingService {
     return _convRef.doc(conversationId).snapshots().map((doc) => doc.exists ? ConversationModel.fromFirestore(doc) : null);
   }
 
+  /// Stream the conversations a user is part of, most-recent first. Sorted
+  /// client-side so the `arrayContains` query needs no composite index.
+  Stream<List<ConversationModel>> streamUserConversations(String userId) {
+    return _convRef.where('participantIds', arrayContains: userId).snapshots().map((snap) {
+      final list = snap.docs.map(ConversationModel.fromFirestore).toList();
+      list.sort((a, b) => (b.lastMessageAt ?? b.createdAt).compareTo(a.lastMessageAt ?? a.createdAt));
+      return list;
+    });
+  }
+
   /// Stream messages oldest → newest for chronological rendering. The
   /// `arrayContains` filter is required so Firestore security rules can
   /// statically prove the query stays within docs the user is allowed to
@@ -37,6 +47,7 @@ class MessagingService {
     required String senderId,
     required List<String> participantIds,
     required String text,
+    String? title,
   }) async {
     final convId = bookingConversationId(bookingId);
     final convRef = _convRef.doc(convId);
@@ -59,6 +70,7 @@ class MessagingService {
       await convRef.set({
         'kind': ConversationKind.booking.name,
         'bookingId': bookingId,
+        if (title != null) 'title': title,
         'participantIds': FieldValue.arrayUnion(participantIds),
         'lastMessageText': text,
         'lastMessageSenderId': senderId,

@@ -872,6 +872,8 @@ class _ChatViewState extends State<_ChatView> {
         senderId: widget.currentUserId,
         participantIds: _participants,
         text: text,
+        // Identify the thread by the match: "Football · 21 Jun · 18:00".
+        title: '${widget.ctx.pitch.sport.label} · ${_fmtDate(widget.booking.startTime)} · ${_fmtTime(widget.booking.startTime)}',
       );
       _controller.clear();
       // Notify everyone in the conversation except the sender (the other party

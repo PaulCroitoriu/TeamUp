@@ -10,9 +10,7 @@ part 'auth_event.dart';
 part 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  AuthBloc({required AuthService authService})
-      : _authService = authService,
-        super(const AuthState.initial()) {
+  AuthBloc({required AuthService authService}) : _authService = authService, super(const AuthState.initial()) {
     on<_AppStarted>(_onAppStarted);
     on<_SignUpRequested>(_onSignUp);
     on<_SignInRequested>(_onSignIn);
@@ -27,10 +25,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   final AuthService _authService;
 
-  Future<void> _onAppStarted(
-    _AppStarted event,
-    Emitter<AuthState> emit,
-  ) async {
+  Future<void> _onAppStarted(_AppStarted event, Emitter<AuthState> emit) async {
     // Wait for the first emission from authStateChanges — this resolves
     // the persisted session on web instead of checking synchronously.
     final firebaseUser = await _authService.authStateChanges.first;
@@ -46,10 +41,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  Future<void> _onSignUp(
-    _SignUpRequested event,
-    Emitter<AuthState> emit,
-  ) async {
+  Future<void> _onSignUp(_SignUpRequested event, Emitter<AuthState> emit) async {
     emit(const AuthState.loading());
     try {
       final UserModel user;
@@ -62,12 +54,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           businessName: event.businessName!,
         );
       } else {
-        user = await _authService.signUpPlayer(
-          email: event.email,
-          password: event.password,
-          firstName: event.firstName,
-          lastName: event.lastName,
-        );
+        user = await _authService.signUpPlayer(email: event.email, password: event.password, firstName: event.firstName, lastName: event.lastName);
       }
       emit(AuthState.authenticated(user));
     } on Exception catch (e) {
@@ -75,26 +62,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  Future<void> _onSignIn(
-    _SignInRequested event,
-    Emitter<AuthState> emit,
-  ) async {
+  Future<void> _onSignIn(_SignInRequested event, Emitter<AuthState> emit) async {
     emit(const AuthState.loading());
     try {
-      final user = await _authService.signIn(
-        email: event.email,
-        password: event.password,
-      );
+      final user = await _authService.signIn(email: event.email, password: event.password);
       emit(AuthState.authenticated(user));
     } on Exception catch (e) {
       emit(AuthState.error(e.toString()));
     }
   }
 
-  Future<void> _onSignOut(
-    _SignOutRequested event,
-    Emitter<AuthState> emit,
-  ) async {
+  Future<void> _onSignOut(_SignOutRequested event, Emitter<AuthState> emit) async {
     await _authService.signOut();
     emit(const AuthState.unauthenticated());
   }

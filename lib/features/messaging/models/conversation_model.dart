@@ -27,6 +27,10 @@ abstract class ConversationModel with _$ConversationModel {
     /// Set when [kind] is `game`.
     String? gameId,
 
+    /// Denormalised label identifying the match — e.g. "Football · Sat 21 · 18:00"
+    /// — so the inbox can show it without loading the booking/pitch per row.
+    String? title,
+
     @Default([]) List<String> participantIds,
     String? lastMessageText,
     String? lastMessageSenderId,

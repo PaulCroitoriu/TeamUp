@@ -17,7 +17,9 @@ mixin _$ConversationModel {
 
  String get id; ConversationKind get kind;/// Set when [kind] is `booking`.
  String? get bookingId;/// Set when [kind] is `game`.
- String? get gameId; List<String> get participantIds; String? get lastMessageText; String? get lastMessageSenderId;@NullableTimestampConverter() DateTime? get lastMessageAt;@TimestampConverter() DateTime get createdAt;
+ String? get gameId;/// Denormalised label identifying the match — e.g. "Football · Sat 21 · 18:00"
+/// — so the inbox can show it without loading the booking/pitch per row.
+ String? get title; List<String> get participantIds; String? get lastMessageText; String? get lastMessageSenderId;@NullableTimestampConverter() DateTime? get lastMessageAt;@TimestampConverter() DateTime get createdAt;
 /// Create a copy of ConversationModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,16 +32,16 @@ $ConversationModelCopyWith<ConversationModel> get copyWith => _$ConversationMode
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationModel&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.bookingId, bookingId) || other.bookingId == bookingId)&&(identical(other.gameId, gameId) || other.gameId == gameId)&&const DeepCollectionEquality().equals(other.participantIds, participantIds)&&(identical(other.lastMessageText, lastMessageText) || other.lastMessageText == lastMessageText)&&(identical(other.lastMessageSenderId, lastMessageSenderId) || other.lastMessageSenderId == lastMessageSenderId)&&(identical(other.lastMessageAt, lastMessageAt) || other.lastMessageAt == lastMessageAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationModel&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.bookingId, bookingId) || other.bookingId == bookingId)&&(identical(other.gameId, gameId) || other.gameId == gameId)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other.participantIds, participantIds)&&(identical(other.lastMessageText, lastMessageText) || other.lastMessageText == lastMessageText)&&(identical(other.lastMessageSenderId, lastMessageSenderId) || other.lastMessageSenderId == lastMessageSenderId)&&(identical(other.lastMessageAt, lastMessageAt) || other.lastMessageAt == lastMessageAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,kind,bookingId,gameId,const DeepCollectionEquality().hash(participantIds),lastMessageText,lastMessageSenderId,lastMessageAt,createdAt);
+int get hashCode => Object.hash(runtimeType,id,kind,bookingId,gameId,title,const DeepCollectionEquality().hash(participantIds),lastMessageText,lastMessageSenderId,lastMessageAt,createdAt);
 
 @override
 String toString() {
-  return 'ConversationModel(id: $id, kind: $kind, bookingId: $bookingId, gameId: $gameId, participantIds: $participantIds, lastMessageText: $lastMessageText, lastMessageSenderId: $lastMessageSenderId, lastMessageAt: $lastMessageAt, createdAt: $createdAt)';
+  return 'ConversationModel(id: $id, kind: $kind, bookingId: $bookingId, gameId: $gameId, title: $title, participantIds: $participantIds, lastMessageText: $lastMessageText, lastMessageSenderId: $lastMessageSenderId, lastMessageAt: $lastMessageAt, createdAt: $createdAt)';
 }
 
 
@@ -50,7 +52,7 @@ abstract mixin class $ConversationModelCopyWith<$Res>  {
   factory $ConversationModelCopyWith(ConversationModel value, $Res Function(ConversationModel) _then) = _$ConversationModelCopyWithImpl;
 @useResult
 $Res call({
- String id, ConversationKind kind, String? bookingId, String? gameId, List<String> participantIds, String? lastMessageText, String? lastMessageSenderId,@NullableTimestampConverter() DateTime? lastMessageAt,@TimestampConverter() DateTime createdAt
+ String id, ConversationKind kind, String? bookingId, String? gameId, String? title, List<String> participantIds, String? lastMessageText, String? lastMessageSenderId,@NullableTimestampConverter() DateTime? lastMessageAt,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -67,12 +69,13 @@ class _$ConversationModelCopyWithImpl<$Res>
 
 /// Create a copy of ConversationModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? kind = null,Object? bookingId = freezed,Object? gameId = freezed,Object? participantIds = null,Object? lastMessageText = freezed,Object? lastMessageSenderId = freezed,Object? lastMessageAt = freezed,Object? createdAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? kind = null,Object? bookingId = freezed,Object? gameId = freezed,Object? title = freezed,Object? participantIds = null,Object? lastMessageText = freezed,Object? lastMessageSenderId = freezed,Object? lastMessageAt = freezed,Object? createdAt = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
 as ConversationKind,bookingId: freezed == bookingId ? _self.bookingId : bookingId // ignore: cast_nullable_to_non_nullable
 as String?,gameId: freezed == gameId ? _self.gameId : gameId // ignore: cast_nullable_to_non_nullable
+as String?,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String?,participantIds: null == participantIds ? _self.participantIds : participantIds // ignore: cast_nullable_to_non_nullable
 as List<String>,lastMessageText: freezed == lastMessageText ? _self.lastMessageText : lastMessageText // ignore: cast_nullable_to_non_nullable
 as String?,lastMessageSenderId: freezed == lastMessageSenderId ? _self.lastMessageSenderId : lastMessageSenderId // ignore: cast_nullable_to_non_nullable
@@ -163,10 +166,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @NullableTimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  String? title,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @NullableTimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ConversationModel() when $default != null:
-return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participantIds,_that.lastMessageText,_that.lastMessageSenderId,_that.lastMessageAt,_that.createdAt);case _:
+return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.title,_that.participantIds,_that.lastMessageText,_that.lastMessageSenderId,_that.lastMessageAt,_that.createdAt);case _:
   return orElse();
 
 }
@@ -184,10 +187,10 @@ return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participa
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @NullableTimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  String? title,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @NullableTimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
 switch (_that) {
 case _ConversationModel():
-return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participantIds,_that.lastMessageText,_that.lastMessageSenderId,_that.lastMessageAt,_that.createdAt);case _:
+return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.title,_that.participantIds,_that.lastMessageText,_that.lastMessageSenderId,_that.lastMessageAt,_that.createdAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -204,10 +207,10 @@ return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participa
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @NullableTimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  String? title,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @NullableTimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
 switch (_that) {
 case _ConversationModel() when $default != null:
-return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participantIds,_that.lastMessageText,_that.lastMessageSenderId,_that.lastMessageAt,_that.createdAt);case _:
+return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.title,_that.participantIds,_that.lastMessageText,_that.lastMessageSenderId,_that.lastMessageAt,_that.createdAt);case _:
   return null;
 
 }
@@ -219,7 +222,7 @@ return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participa
 @JsonSerializable()
 
 class _ConversationModel implements ConversationModel {
-  const _ConversationModel({required this.id, required this.kind, this.bookingId, this.gameId, final  List<String> participantIds = const [], this.lastMessageText, this.lastMessageSenderId, @NullableTimestampConverter() this.lastMessageAt, @TimestampConverter() required this.createdAt}): _participantIds = participantIds;
+  const _ConversationModel({required this.id, required this.kind, this.bookingId, this.gameId, this.title, final  List<String> participantIds = const [], this.lastMessageText, this.lastMessageSenderId, @NullableTimestampConverter() this.lastMessageAt, @TimestampConverter() required this.createdAt}): _participantIds = participantIds;
   factory _ConversationModel.fromJson(Map<String, dynamic> json) => _$ConversationModelFromJson(json);
 
 @override final  String id;
@@ -228,6 +231,9 @@ class _ConversationModel implements ConversationModel {
 @override final  String? bookingId;
 /// Set when [kind] is `game`.
 @override final  String? gameId;
+/// Denormalised label identifying the match — e.g. "Football · Sat 21 · 18:00"
+/// — so the inbox can show it without loading the booking/pitch per row.
+@override final  String? title;
  final  List<String> _participantIds;
 @override@JsonKey() List<String> get participantIds {
   if (_participantIds is EqualUnmodifiableListView) return _participantIds;
@@ -253,16 +259,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationModel&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.bookingId, bookingId) || other.bookingId == bookingId)&&(identical(other.gameId, gameId) || other.gameId == gameId)&&const DeepCollectionEquality().equals(other._participantIds, _participantIds)&&(identical(other.lastMessageText, lastMessageText) || other.lastMessageText == lastMessageText)&&(identical(other.lastMessageSenderId, lastMessageSenderId) || other.lastMessageSenderId == lastMessageSenderId)&&(identical(other.lastMessageAt, lastMessageAt) || other.lastMessageAt == lastMessageAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationModel&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.bookingId, bookingId) || other.bookingId == bookingId)&&(identical(other.gameId, gameId) || other.gameId == gameId)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other._participantIds, _participantIds)&&(identical(other.lastMessageText, lastMessageText) || other.lastMessageText == lastMessageText)&&(identical(other.lastMessageSenderId, lastMessageSenderId) || other.lastMessageSenderId == lastMessageSenderId)&&(identical(other.lastMessageAt, lastMessageAt) || other.lastMessageAt == lastMessageAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,kind,bookingId,gameId,const DeepCollectionEquality().hash(_participantIds),lastMessageText,lastMessageSenderId,lastMessageAt,createdAt);
+int get hashCode => Object.hash(runtimeType,id,kind,bookingId,gameId,title,const DeepCollectionEquality().hash(_participantIds),lastMessageText,lastMessageSenderId,lastMessageAt,createdAt);
 
 @override
 String toString() {
-  return 'ConversationModel(id: $id, kind: $kind, bookingId: $bookingId, gameId: $gameId, participantIds: $participantIds, lastMessageText: $lastMessageText, lastMessageSenderId: $lastMessageSenderId, lastMessageAt: $lastMessageAt, createdAt: $createdAt)';
+  return 'ConversationModel(id: $id, kind: $kind, bookingId: $bookingId, gameId: $gameId, title: $title, participantIds: $participantIds, lastMessageText: $lastMessageText, lastMessageSenderId: $lastMessageSenderId, lastMessageAt: $lastMessageAt, createdAt: $createdAt)';
 }
 
 
@@ -273,7 +279,7 @@ abstract mixin class _$ConversationModelCopyWith<$Res> implements $ConversationM
   factory _$ConversationModelCopyWith(_ConversationModel value, $Res Function(_ConversationModel) _then) = __$ConversationModelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, ConversationKind kind, String? bookingId, String? gameId, List<String> participantIds, String? lastMessageText, String? lastMessageSenderId,@NullableTimestampConverter() DateTime? lastMessageAt,@TimestampConverter() DateTime createdAt
+ String id, ConversationKind kind, String? bookingId, String? gameId, String? title, List<String> participantIds, String? lastMessageText, String? lastMessageSenderId,@NullableTimestampConverter() DateTime? lastMessageAt,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -290,12 +296,13 @@ class __$ConversationModelCopyWithImpl<$Res>
 
 /// Create a copy of ConversationModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? kind = null,Object? bookingId = freezed,Object? gameId = freezed,Object? participantIds = null,Object? lastMessageText = freezed,Object? lastMessageSenderId = freezed,Object? lastMessageAt = freezed,Object? createdAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? kind = null,Object? bookingId = freezed,Object? gameId = freezed,Object? title = freezed,Object? participantIds = null,Object? lastMessageText = freezed,Object? lastMessageSenderId = freezed,Object? lastMessageAt = freezed,Object? createdAt = null,}) {
   return _then(_ConversationModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
 as ConversationKind,bookingId: freezed == bookingId ? _self.bookingId : bookingId // ignore: cast_nullable_to_non_nullable
 as String?,gameId: freezed == gameId ? _self.gameId : gameId // ignore: cast_nullable_to_non_nullable
+as String?,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String?,participantIds: null == participantIds ? _self._participantIds : participantIds // ignore: cast_nullable_to_non_nullable
 as List<String>,lastMessageText: freezed == lastMessageText ? _self.lastMessageText : lastMessageText // ignore: cast_nullable_to_non_nullable
 as String?,lastMessageSenderId: freezed == lastMessageSenderId ? _self.lastMessageSenderId : lastMessageSenderId // ignore: cast_nullable_to_non_nullable
