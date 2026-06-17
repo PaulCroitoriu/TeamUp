@@ -23,14 +23,17 @@ class DayStats {
   final int bookedHours;
 }
 
-/// Telemetry window. Day is the default; month/year aggregate the whole period.
-enum StatsPeriod { day, month, year }
+/// Telemetry window. Day is the default; month/year aggregate the whole period;
+/// custom uses an explicit start/end picked by the owner.
+enum StatsPeriod { day, month, year, custom }
 
 /// Half-open [start, end) range covering the [period] containing [anchor].
+/// (custom is computed from the owner's picked range, not this helper.)
 (DateTime, DateTime) periodRange(StatsPeriod period, DateTime anchor) {
   final a = DateTime(anchor.year, anchor.month, anchor.day);
   switch (period) {
     case StatsPeriod.day:
+    case StatsPeriod.custom:
       return (a, a.add(const Duration(days: 1)));
     case StatsPeriod.month:
       return (DateTime(a.year, a.month, 1), DateTime(a.year, a.month + 1, 1));

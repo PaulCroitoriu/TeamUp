@@ -32,10 +32,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _selectedVenueId;
   StatsPeriod _period = StatsPeriod.day;
   Sport? _sport;
+  DateTime? _customStart;
+  DateTime? _customEnd;
+
+  // Streams are cached so changing the period/sport/day (a setState) doesn't
+  // recreate them and reload the whole page.
+  String? _streamBusinessId;
+  Stream<List<VenueModel>>? _venuesStream;
+  Stream<List<PitchModel>>? _pitchesStream;
+  Stream<List<BookingModel>>? _bookingsStream;
+
+  void _ensureStreams(String businessId) {
+    if (_streamBusinessId == businessId && _venuesStream != null) return;
+    _streamBusinessId = businessId;
+    _venuesStream = _venueService.streamBusinessVenues(businessId);
+    _pitchesStream = _venueService.streamPitchesAcrossVenues();
+    _bookingsStream = _bookingService.streamBusinessBookings(businessId);
+  }
 
   static DateTime _today() {
     final n = DateTime.now();
     return DateTime(n.year, n.month, n.day);
+  }
+
+  Future<void> _onPeriodChanged(StatsPeriod p) async {
+    if (p != StatsPeriod.custom) {
+      setState(() => _period = p);
+      return;
+    }
+    await _pickCustomRange();
+  }
+
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final initial = _customStart != null && _customEnd != null
+        ? DateTimeRange(start: _customStart!, end: _customEnd!)
+        : DateTimeRange(start: now.subtract(const Duration(days: 13)), end: now);
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 3),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: initial,
+      helpText: 'Select a period',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _period = StatsPeriod.custom;
+      _customStart = DateTime(picked.start.year, picked.start.month, picked.start.day);
+      _customEnd = DateTime(picked.end.year, picked.end.month, picked.end.day);
+    });
   }
 
   @override
@@ -51,8 +96,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             body: Center(child: Text('No business linked to this account')),
           );
         }
+        _ensureStreams(businessId);
         return StreamBuilder<List<VenueModel>>(
-          stream: _venueService.streamBusinessVenues(businessId),
+          stream: _venuesStream,
           builder: (context, vSnap) {
             if (vSnap.connectionState == ConnectionState.waiting) {
               return _shell(
@@ -76,7 +122,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               venues: venues,
               activeVenueId: activeVenueId,
               body: StreamBuilder<List<PitchModel>>(
-                stream: _venueService.streamPitchesAcrossVenues(),
+                stream: _pitchesStream,
                 builder: (context, pSnap) {
                   if (pSnap.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -88,7 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ..sort((a, b) => a.sport.value - b.sport.value);
 
                   return StreamBuilder<List<BookingModel>>(
-                    stream: _bookingService.streamBusinessBookings(businessId),
+                    stream: _bookingsStream,
                     builder: (context, bSnap) {
                       final allBookings = bSnap.data ?? const <BookingModel>[];
                       // All non-cancelled bookings for this venue (any date) —
@@ -107,7 +153,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           () => _selectedDay = DateTime(d.year, d.month, d.day),
                         ),
                         period: _period,
-                        onPeriodChanged: (p) => setState(() => _period = p),
+                        onPeriodChanged: _onPeriodChanged,
+                        onPickCustom: _pickCustomRange,
+                        customStart: _customStart,
+                        customEnd: _customEnd,
                         sportFilter: _sport,
                         onSportChanged: (s) => setState(() => _sport = s),
                         venuesById: venuesById,
