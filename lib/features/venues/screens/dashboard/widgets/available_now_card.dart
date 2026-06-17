@@ -3,6 +3,7 @@ import 'package:teamup/core/enums/booking_status.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
 import 'package:teamup/features/venues/screens/dashboard/shared.dart';
 import 'package:teamup/features/venues/screens/dashboard/widgets/manual_book_sheet.dart';
 
@@ -17,36 +18,40 @@ class AvailableNowCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
+    // Bookings start on the hour, so surface the next sharp hour (the current
+    // one if we're exactly on it).
+    final targetHour = now.minute == 0 ? now.hour : now.hour + 1;
+    final hasUpcoming = targetHour < kHourCount;
+    final slotStart = DateTime(day.year, day.month, day.day, hasUpcoming ? targetHour : 0);
+    final slotEnd = slotStart.add(const Duration(hours: 1));
 
     final freeNow = <PitchModel>[];
-    for (final p in pitches) {
-      final venue = venues[p.venueId];
-      if (venue == null) continue;
-      final win = openingWindow(venue, day);
-      if (win.closed) continue;
-      if (now.hour < win.openH || now.hour >= win.closeH) continue;
-      final occupied = bookings.any(
-        (b) => b.pitchId == p.id && b.status != BookingStatus.cancelled && !b.startTime.isAfter(now) && b.endTime.isAfter(now),
-      );
-      if (occupied) continue;
-      freeNow.add(p);
+    if (hasUpcoming) {
+      for (final p in pitches) {
+        final venue = venues[p.venueId];
+        if (venue == null) continue;
+        final win = openingWindow(venue, day);
+        if (win.closed) continue;
+        if (targetHour < win.openH || targetHour >= win.closeH) continue;
+        final occupied = bookings.any(
+          (b) => b.pitchId == p.id && b.status != BookingStatus.cancelled && b.startTime.isBefore(slotEnd) && b.endTime.isAfter(slotStart),
+        );
+        if (occupied) continue;
+        freeNow.add(p);
+      }
     }
 
-    final colors = Theme.of(context).colorScheme;
-    final timeStr = '${two(now.hour)}:${two(now.minute)}';
+    final slotStr = '${two(targetHour)}:00';
     final showVenueName = venues.length > 1;
 
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colors.primary, Color.lerp(colors.primary, Colors.black, 0.22)!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: colors.primary.withAlpha(50), blurRadius: 18, offset: const Offset(0, 6))],
+        color: TUColors.surface,
+        borderRadius: BorderRadius.circular(TUColors.rLg),
+        border: Border.all(color: TUColors.line),
+        boxShadow: TUColors.shSm,
       ),
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -55,8 +60,8 @@ class AvailableNowCard extends StatelessWidget {
               Container(
                 width: 38,
                 height: 38,
-                decoration: BoxDecoration(color: Colors.white.withAlpha(45), shape: BoxShape.circle),
-                child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 22),
+                decoration: BoxDecoration(color: TUColors.brandTint, borderRadius: BorderRadius.circular(11)),
+                child: const Icon(Icons.bolt_rounded, color: TUColors.brand700, size: 21),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -65,29 +70,31 @@ class AvailableNowCard extends StatelessWidget {
                   children: [
                     const Text(
                       'Available right now',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 0.2),
+                      style: TextStyle(color: TUColors.ink, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       pitches.isEmpty
                           ? 'No pitches on this view'
-                          : '${freeNow.length} of ${pitches.length} pitch${pitches.length == 1 ? '' : 'es'} free · $timeStr',
-                      style: TextStyle(color: Colors.white.withAlpha(210), fontSize: 12, fontWeight: FontWeight.w600),
+                          : !hasUpcoming
+                          ? 'No more slots today'
+                          : '${freeNow.length} of ${pitches.length} pitch${pitches.length == 1 ? '' : 'es'} free · from $slotStr',
+                      style: const TextStyle(color: TUColors.ink3, fontSize: 12.5, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           if (freeNow.isEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-              decoration: BoxDecoration(color: Colors.white.withAlpha(30), borderRadius: BorderRadius.circular(12)),
-              child: const Center(
+              decoration: BoxDecoration(color: TUColors.surface2, borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
+              child: Center(
                 child: Text(
-                  'Every pitch is booked right now — nice problem to have.',
-                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                  hasUpcoming ? 'Every pitch is booked at $slotStr — nice problem to have.' : 'The venue is done for today.',
+                  style: const TextStyle(color: TUColors.ink2, fontSize: 13, fontWeight: FontWeight.w600),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -113,7 +120,7 @@ class AvailableNowCard extends StatelessWidget {
                           pitch: p,
                           venue: venues[p.venueId],
                           day: day,
-                          hour: now.hour,
+                          hour: targetHour,
                           showVenueName: showVenueName,
                         ),
                       ),
@@ -138,16 +145,16 @@ class _FreePitchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final price = (pitch.pricePerHour / 100).toStringAsFixed(0);
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      color: TUColors.surface2,
+      borderRadius: BorderRadius.circular(TUColors.rMd),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(TUColors.rMd),
         onTap: () => openManualBookForPitch(context, pitch: pitch, venue: venue, day: day, hour: hour),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -157,9 +164,9 @@ class _FreePitchTile extends StatelessWidget {
                   Container(
                     width: 30,
                     height: 30,
-                    decoration: BoxDecoration(color: const Color(0xFF1E7E3F).withAlpha(28), shape: BoxShape.circle),
+                    decoration: BoxDecoration(color: pitch.sport.color.withAlpha(28), shape: BoxShape.circle),
                     child: Center(
-                      child: Image.asset(pitch.sport.iconPath, width: 14, height: 14, color: const Color(0xFF1E7E3F)),
+                      child: Image.asset(pitch.sport.iconPath, width: 14, height: 14, color: pitch.sport.color),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -171,14 +178,14 @@ class _FreePitchTile extends StatelessWidget {
                           pitch.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.black),
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: TUColors.ink),
                         ),
                         if (showVenueName && venue != null)
                           Text(
                             venue!.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.black.withAlpha(140), fontSize: 11, fontWeight: FontWeight.w600),
+                            style: const TextStyle(color: TUColors.ink3, fontSize: 11, fontWeight: FontWeight.w600),
                           ),
                       ],
                     ),
@@ -191,12 +198,12 @@ class _FreePitchTile extends StatelessWidget {
                   Expanded(
                     child: Text(
                       '$price ${pitch.currency}/hr',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF1E7E3F)),
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: TUColors.brand700),
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(color: theme.colorScheme.primary, borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: TUColors.brand, borderRadius: BorderRadius.circular(TUColors.rSm)),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

@@ -88,10 +88,10 @@ class _KpiCard extends StatelessWidget {
     // progress / footnote) so they all settle at the same height,
     // even when some slots are empty.
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: colors.onSurface.withAlpha(18)),
       ),
       child: Column(

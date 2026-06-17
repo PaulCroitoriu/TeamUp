@@ -126,7 +126,7 @@ class ScheduleView extends StatelessWidget {
                 title: isToday ? 'Today’s schedule' : 'Schedule',
                 titleIcon: Icons.tv_rounded,
                 action: _LegendDots(),
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:teamup/core/enums/sport.dart';
 import 'package:teamup/core/theme/design_tokens.dart';
-import 'package:teamup/core/theme/sport_tile.dart';
 import 'package:teamup/core/enums/notification_type.dart';
 import 'package:teamup/features/auth/models/user_model.dart';
 import 'package:teamup/features/notifications/data/notification_service.dart';
@@ -276,11 +274,13 @@ class _Sidebar extends StatelessWidget {
                             width: 38,
                             height: 38,
                             decoration: BoxDecoration(
-                              color: TUColors.brand,
                               borderRadius: BorderRadius.circular(11),
                               boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 16, offset: const Offset(0, 6))],
                             ),
-                            child: const Center(child: SportGlyph(sport: Sport.football, size: 22, color: Colors.white)),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(11),
+                              child: Image.asset('assets/logo/teamup-mark.png', width: 38, height: 38, fit: BoxFit.cover),
+                            ),
                           ),
                           if (expanded) ...[
                             const SizedBox(width: 11),
