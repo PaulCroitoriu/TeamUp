@@ -30,7 +30,7 @@ abstract class ConversationModel with _$ConversationModel {
     @Default([]) List<String> participantIds,
     String? lastMessageText,
     String? lastMessageSenderId,
-    @TimestampConverter() DateTime? lastMessageAt,
+    @NullableTimestampConverter() DateTime? lastMessageAt,
     @TimestampConverter() required DateTime createdAt,
   }) = _ConversationModel;
 

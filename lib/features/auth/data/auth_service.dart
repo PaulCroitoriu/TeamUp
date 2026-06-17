@@ -113,6 +113,11 @@ class AuthService {
     return getUserProfile(uid);
   }
 
+  /// Toggle whether player bookings auto-confirm for this business.
+  Future<void> setAutoConfirmBookings(String businessId, bool value) {
+    return _businessesRef.doc(businessId).update({'autoConfirmBookings': value});
+  }
+
   Future<BusinessModel> getBusiness(String id) async {
     final doc = await _businessesRef.doc(id).get();
     if (!doc.exists) {

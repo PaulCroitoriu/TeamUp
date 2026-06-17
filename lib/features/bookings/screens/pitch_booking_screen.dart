@@ -8,7 +8,6 @@ import 'package:teamup/core/enums/game_status.dart';
 import 'package:teamup/core/enums/join_request_status.dart';
 import 'package:teamup/core/enums/notification_type.dart';
 import 'package:teamup/core/theme/design_tokens.dart';
-import 'package:teamup/core/theme/sport_tile.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
 import 'package:teamup/features/auth/data/auth_service.dart';
 import 'package:teamup/features/bookings/data/booking_service.dart';
@@ -19,6 +18,7 @@ import 'package:teamup/features/games/data/game_service.dart';
 import 'package:teamup/features/games/models/game_model.dart';
 import 'package:teamup/features/games/models/join_request_model.dart';
 import 'package:teamup/shared/widgets/adaptive_sheet.dart';
+import 'package:teamup/shared/widgets/page_header.dart';
 import 'package:teamup/features/notifications/data/notification_service.dart';
 import 'package:teamup/features/notifications/models/notification_model.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
@@ -89,6 +89,16 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
   bool _booking = false;
   String? _confirmedBookingId;
 
+  // Per-day streams are cached so selecting a slot (a setState) doesn't recreate
+  // them and make the grid flash through its loading state.
+  late Stream<List<GameModel>> _gamesStream;
+  late Stream<List<BookingModel>> _bookingsStream;
+
+  void _refreshStreams() {
+    _gamesStream = _gameService.streamPitchGamesForDay(widget.pitch.id, _selectedDay);
+    _bookingsStream = _bookingService.streamPitchBookingsForDay(widget.pitch.id, _selectedDay);
+  }
+
   // The current user's join requests, keyed by gameId — drives the Requested/
   // Accepted slot state.
   Map<String, JoinRequestStatus> _myRequests = {};
@@ -97,6 +107,7 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
   @override
   void initState() {
     super.initState();
+    _refreshStreams();
     final uid = context.read<AuthBloc>().state.maybeMap(
       authenticated: (s) => s.user.uid,
       orElse: () => null,
@@ -112,6 +123,15 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
         onError: (Object e, StackTrace st) =>
             _log.w('My requests stream failed', error: e, stackTrace: st),
       );
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PitchBookingScreen old) {
+    super.didUpdateWidget(old);
+    if (old.pitch.id != widget.pitch.id) {
+      _selectedSlot = null;
+      _refreshStreams();
     }
   }
 
@@ -252,6 +272,19 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _booking = true);
     try {
+      // The venue's business decides whether bookings auto-confirm. Default to
+      // auto-confirm if the business can't be loaded.
+      var autoConfirm = true;
+      String? ownerUid;
+      try {
+        final business = await _authService.getBusiness(widget.venue.businessId);
+        autoConfirm = business.autoConfirmBookings;
+        ownerUid = business.ownerUid;
+      } catch (e, st) {
+        _log.w('Could not load business for auto-confirm: ${_describeError(e)}', stackTrace: st);
+      }
+
+      final now = DateTime.now();
       final draft = BookingModel(
         id: '',
         pitchId: widget.pitch.id,
@@ -263,7 +296,10 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
         pricePaid: widget.pitch.pricePerHour,
         currency: widget.pitch.currency,
         paymentMethod: cfg.method,
-        createdAt: DateTime.now(),
+        // Pending only when the owner has chosen to review bookings manually.
+        status: autoConfirm ? BookingStatus.confirmed : BookingStatus.pending,
+        confirmedAt: autoConfirm ? now : null,
+        createdAt: now,
       );
 
       // Open game → write the game + its reserving booking atomically;
@@ -308,29 +344,29 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
         booking = await _bookingService.createBooking(draft);
       }
 
-      // Notify the business owner.
-      try {
-        final business = await _authService.getBusiness(
-          widget.venue.businessId,
-        );
-        await _notificationService.create(
-          NotificationModel(
-            id: '',
-            recipientId: business.ownerUid,
-            type: NotificationType.newBooking,
-            title: 'New booking request',
-            body:
-                '${widget.pitch.name} • ${_formatDate(slot.start)} ${_formatTime(slot.start)}',
-            bookingId: booking.id,
-            createdAt: DateTime.now(),
-          ),
-        );
-      } catch (e, st) {
-        // Don't fail the booking if the notification write fails.
-        _log.w(
-          'Failed to write newBooking notification: ${_describeError(e)}',
-          stackTrace: st,
-        );
+      // Notify the business owner — a review request when manual, otherwise an
+      // FYI that a booking landed.
+      if (ownerUid != null) {
+        try {
+          await _notificationService.create(
+            NotificationModel(
+              id: '',
+              recipientId: ownerUid,
+              type: NotificationType.newBooking,
+              title: autoConfirm ? 'New booking' : 'New booking to confirm',
+              body:
+                  '${widget.pitch.name} • ${_formatDate(slot.start)} ${_formatTime(slot.start)}',
+              bookingId: booking.id,
+              createdAt: DateTime.now(),
+            ),
+          );
+        } catch (e, st) {
+          // Don't fail the booking if the notification write fails.
+          _log.w(
+            'Failed to write newBooking notification: ${_describeError(e)}',
+            stackTrace: st,
+          );
+        }
       }
 
       if (!mounted) return null;
@@ -461,115 +497,39 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
       ),
     );
 
-    // Match the design's gutters: 34px on desktop, 18px on mobile.
-    final gutter = MediaQuery.sizeOf(context).width >= 600 ? 34.0 : 18.0;
+    final wide = MediaQuery.sizeOf(context).width >= 600;
+    // Aligns with the shared PageHeader's gutter; desktop whitespace comes from
+    // the centered max-width container instead.
+    final gutter = wide ? 20.0 : 16.0;
 
     return Scaffold(
-      backgroundColor: TUColors.surface,
-      appBar: AppBar(
-        backgroundColor: TUColors.surface,
-        foregroundColor: TUColors.ink,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: widget.onBack != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back_rounded),
-                onPressed: widget.onBack,
-              )
-            : null,
-        title: Text(
-          widget.pitch.name,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.4,
-            color: TUColors.ink,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          // ── Pitch summary header (sport tile · club · rate) ──
-          Padding(
-            padding: EdgeInsets.fromLTRB(gutter, 4, gutter, 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: sport.color,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Center(
-                    child: SportGlyph(
-                      sport: sport,
-                      size: 26,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 13),
-                Expanded(
+      backgroundColor: TUColors.bg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${sport.label} · ${widget.venue.name}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: TUColors.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.location_on_outlined,
-                            size: 13,
-                            color: TUColors.ink3,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              '${widget.venue.city} · ${widget.pitch.indoor ? 'Indoor' : 'Outdoor'}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: TUColors.ink2,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+        children: [
+          // ── Pitch header (Explore-style: back · big title · rate) ──
+          PageHeader(
+            leading: HeaderBackButton(onTap: widget.onBack),
+            title: widget.pitch.name,
+            subtitle: '${sport.label} · ${widget.venue.name}, ${widget.venue.city} · ${widget.pitch.indoor ? 'Indoor' : 'Outdoor'}',
+            trailing: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '$priceAmount ${widget.pitch.currency}',
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: TUColors.brand700),
                 ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '$priceAmount ${widget.pitch.currency}',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: TUColors.brand700,
-                      ),
-                    ),
-                    const Text(
-                      'per hour',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: TUColors.ink3,
-                      ),
-                    ),
-                  ],
+                const Text(
+                  'per hour',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TUColors.ink3),
                 ),
               ],
             ),
@@ -582,25 +542,21 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
             onSelected: (d) => setState(() {
               _selectedDay = d;
               _selectedSlot = null;
+              _refreshStreams();
             }),
           ),
 
           // ── Slot grid ──
           Expanded(
             child: StreamBuilder<List<GameModel>>(
-              stream: _gameService.streamPitchGamesForDay(
-                widget.pitch.id,
-                _selectedDay,
-              ),
+              stream: _gamesStream,
               builder: (context, gameSnap) {
                 final games = gameSnap.data ?? const <GameModel>[];
                 return StreamBuilder<List<BookingModel>>(
-                  stream: _bookingService.streamPitchBookingsForDay(
-                    widget.pitch.id,
-                    _selectedDay,
-                  ),
+                  stream: _bookingsStream,
                   builder: (context, snap) {
-                    if (snap.connectionState == ConnectionState.waiting) {
+                    if (snap.connectionState == ConnectionState.waiting &&
+                        !snap.hasData) {
                       return const Center(child: CircularProgressIndicator());
                     }
                     final slots = _slotsFor(
@@ -619,19 +575,26 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
                         ),
                       );
                     }
-                    final openCount = slots
-                        .where((s) => s.available || s.isOpen)
-                        .length;
+                    // Separate the free-to-book slots from joinable open games
+                    // so the count matches the legend instead of lumping them.
+                    final availableCount = slots.where((s) => s.available).length;
+                    final openGameCount = slots.where((s) => s.isOpen).length;
+                    final countLabel = availableCount == 0 && openGameCount == 0
+                        ? 'Fully booked'
+                        : [
+                            if (availableCount > 0) '$availableCount available',
+                            if (openGameCount > 0) '$openGameCount open',
+                          ].join(' · ');
                     return ListView(
                       padding: EdgeInsets.fromLTRB(gutter, 22, gutter, 24),
                       children: [
-                        // slothead: "Wed 17 · N open" + legend (legend hidden
-                        // on mobile, matching the design).
+                        // slothead: "Wed 17 · N available · M open" + legend
+                        // (legend hidden on mobile, matching the design).
                         Row(
                           children: [
                             Expanded(
                               child: Text(
-                                '${_weekdayLabel(_selectedDay)} ${_selectedDay.day} · $openCount open',
+                                '${_weekdayLabel(_selectedDay)} ${_selectedDay.day} · $countLabel',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -641,17 +604,17 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
                                 ),
                               ),
                             ),
-                            if (gutter >= 30) ...const [
+                            if (wide) ...const [
                               SizedBox(width: 12),
                               _LegendDot(
-                                color: TUColors.brandSoft,
+                                color: TUColors.brand,
                                 label: 'Available',
                               ),
                               SizedBox(width: 14),
                               _LegendDot(color: TUColors.lime, label: 'Open'),
                               SizedBox(width: 14),
                               _LegendDot(
-                                color: TUColors.busyBg,
+                                color: TUColors.ink3,
                                 label: 'Booked',
                               ),
                             ],
@@ -660,9 +623,13 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
                         const SizedBox(height: 16),
                         LayoutBuilder(
                           builder: (context, c) {
-                            // 3 columns on desktop (design repeat(3)), 2 otherwise.
-                            final cols = c.maxWidth >= 720 ? 3 : 2;
-                            final gap = cols == 3 ? 14.0 : 12.0;
+                            // Denser grid on desktop so slots don't stretch.
+                            final cols = c.maxWidth >= 900
+                                ? 4
+                                : c.maxWidth >= 560
+                                ? 3
+                                : 2;
+                            final gap = cols >= 3 ? 14.0 : 12.0;
                             return GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
@@ -708,40 +675,33 @@ class _PitchBookingScreenState extends State<PitchBookingScreen> {
               },
             ),
           ),
-
-          // ── Sticky continue bar / sign-in prompt ──
-          if (userId == null)
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(horizontal: gutter, vertical: 16),
-              color: const Color(0xFFFBEEDD),
-              child: const Text(
-                'Sign in to book a slot',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: TUColors.brand900,
-                  fontWeight: FontWeight.w600,
+        ],
+                  ),
                 ),
               ),
-            )
-          else if (_selectedSlot != null)
-            _ContinueBar(
-              gutter: gutter,
-              day: _selectedDay,
-              start: _selectedSlot!.start,
-              price: '$priceAmount ${widget.pitch.currency}',
-              isJoin: _selectedSlot!.isOpen,
-              requestNeeded:
-                  _selectedSlot!.isOpen &&
-                  (_selectedSlot!.game?.requiresApproval ?? false),
-              payMode:
-                  _selectedSlot!.isOpen &&
-                  _myRequests[_selectedSlot!.game?.id] ==
-                      JoinRequestStatus.approved,
-              busy: _booking,
-              onContinue: () => _openConfig(_selectedSlot!, userId),
             ),
-        ],
+
+            // ── Full-width bottom bar; inner content aligned to the page ──
+            if (userId == null)
+              const _BottomSignIn()
+            else if (_selectedSlot != null)
+              _ContinueBar(
+                day: _selectedDay,
+                start: _selectedSlot!.start,
+                price: '$priceAmount ${widget.pitch.currency}',
+                isJoin: _selectedSlot!.isOpen,
+                requestNeeded:
+                    _selectedSlot!.isOpen &&
+                    (_selectedSlot!.game?.requiresApproval ?? false),
+                payMode:
+                    _selectedSlot!.isOpen &&
+                    _myRequests[_selectedSlot!.game?.id] ==
+                        JoinRequestStatus.approved,
+                busy: _booking,
+                onContinue: () => _openConfig(_selectedSlot!, userId),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -758,11 +718,12 @@ class _LegendDot extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 11,
-          height: 11,
+          width: 13,
+          height: 13,
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: TUColors.ink.withValues(alpha: .12)),
           ),
         ),
         const SizedBox(width: 6),
@@ -770,7 +731,7 @@ class _LegendDot extends StatelessWidget {
           label,
           style: const TextStyle(
             fontSize: 12.5,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: TUColors.ink2,
           ),
         ),
@@ -779,9 +740,39 @@ class _LegendDot extends StatelessWidget {
   }
 }
 
+/// Full-width prompt shown to signed-out visitors; content aligned to the page.
+class _BottomSignIn extends StatelessWidget {
+  const _BottomSignIn();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFFBEEDD),
+      child: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+            child: const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 16),
+              child: Text(
+                'Sign in to book a slot',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: TUColors.brand900, fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-width sticky action bar. The background spans the screen; the content is
+/// aligned to the same max-width column as the rest of the page.
 class _ContinueBar extends StatelessWidget {
   const _ContinueBar({
-    required this.gutter,
     required this.day,
     required this.start,
     required this.price,
@@ -792,7 +783,6 @@ class _ContinueBar extends StatelessWidget {
     this.payMode = false,
   });
 
-  final double gutter;
   final DateTime day;
   final DateTime start;
   final String price;
@@ -805,92 +795,99 @@ class _ContinueBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final end = start.add(const Duration(hours: 1));
+    final gutter = MediaQuery.sizeOf(context).width >= 600 ? 20.0 : 16.0;
+    final subtitle = payMode
+        ? 'Approved — confirm to lock your spot'
+        : isJoin
+        ? (requestNeeded ? 'Request to join · host approves' : 'Joining an open game')
+        : 'Full court booking';
+
     return Container(
-      decoration: const BoxDecoration(
+      width: double.infinity,
+      decoration: BoxDecoration(
         color: TUColors.surface,
-        border: Border(top: BorderSide(color: TUColors.line)),
+        border: const Border(top: BorderSide(color: TUColors.line)),
+        boxShadow: TUColors.shSm,
       ),
-      padding: EdgeInsets.fromLTRB(
-        gutter,
-        14,
-        gutter,
-        14 + MediaQuery.of(context).padding.bottom,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${_formatTime(start)}–${_formatTime(end)} · ${_weekdayLabel(day)} ${day.day}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: TUColors.ink,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  payMode
-                      ? 'Approved — pay to confirm your spot'
-                      : isJoin
-                      ? (requestNeeded
-                            ? 'Request to join · host approves'
-                            : 'Joining an open game')
-                      : 'Full court booking',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: TUColors.ink2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 14),
-          FilledButton(
-            onPressed: busy ? null : onContinue,
-            style: FilledButton.styleFrom(
-              backgroundColor: TUColors.brand,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(0, 48),
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(TUColors.rMd),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            child: busy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+      child: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(gutter, 14, gutter, 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: TUColors.brandTint,
+                      borderRadius: BorderRadius.circular(TUColors.rMd),
                     ),
-                  )
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        payMode
-                            ? 'Confirm spot'
-                            : isJoin
-                            ? (requestNeeded ? 'Request to join' : 'Join game')
-                            : 'Continue · $price',
-                      ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.arrow_forward_rounded, size: 18),
-                    ],
+                    child: const Icon(Icons.schedule_rounded, size: 21, color: TUColors.brand700),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${_formatTime(start)}–${_formatTime(end)} · ${_weekdayLabel(day)} ${day.day}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: TUColors.ink),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: TUColors.ink2),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  FilledButton(
+                    onPressed: busy ? null : onContinue,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: TUColors.brand,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 50),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(TUColors.rMd),
+                      ),
+                      textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                    ),
+                    child: busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                payMode
+                                    ? 'Confirm spot'
+                                    : isJoin
+                                    ? (requestNeeded ? 'Request to join' : 'Join game')
+                                    : 'Continue · $price',
+                              ),
+                              const SizedBox(width: 6),
+                              const Icon(Icons.arrow_forward_rounded, size: 18),
+                            ],
+                          ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
+        ),
       ),
     );
   }

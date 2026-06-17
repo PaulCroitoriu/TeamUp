@@ -81,7 +81,10 @@ class _BookingsShellState extends State<_BookingsShell> {
       backgroundColor: TUColors.bg,
       body: SafeArea(
         bottom: false,
-        child: Column(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const PageHeader(title: 'Bookings'),
@@ -116,6 +119,8 @@ class _BookingsShellState extends State<_BookingsShell> {
               ),
             ),
           ],
+            ),
+          ),
         ),
       ),
     );
@@ -161,7 +166,7 @@ class _BookingsBody extends StatelessWidget {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 820),
+        constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
         child: ListView(
           padding: EdgeInsets.fromLTRB(
             hPad,
@@ -199,7 +204,7 @@ class _BookingsBody extends StatelessWidget {
               _GroupHeader(label: group.label),
               const SizedBox(height: 10),
               for (final b in group.bookings) ...[
-                BookingCard(booking: b, showBooker: true),
+                BookingCard(booking: b, showBooker: true, actionNeeded: b.status == BookingStatus.pending),
                 const SizedBox(height: 10),
               ],
               SizedBox(height: isMobile ? 18 : 28),
@@ -660,10 +665,17 @@ class BookingCard extends StatelessWidget {
     super.key,
     required this.booking,
     this.showBooker = false,
+    this.actionNeeded = false,
   });
 
   final BookingModel booking;
   final bool showBooker;
+
+  /// Highlights the card when the viewer must act on it (e.g. an owner with a
+  /// pending booking to confirm).
+  final bool actionNeeded;
+
+  static const _amber = Color(0xFFC9881A);
 
   static const _months = [
     'Jan',
@@ -711,11 +723,14 @@ class BookingCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
+            color: actionNeeded ? _amber.withAlpha(12) : null,
             border: Border.all(
-              color: isLive
+              color: actionNeeded
+                  ? _amber.withAlpha(170)
+                  : isLive
                   ? colors.primary.withAlpha(140)
                   : colors.onSurface.withAlpha(20),
-              width: isLive ? 1.5 : 1,
+              width: actionNeeded || isLive ? 1.5 : 1,
             ),
           ),
           child: Opacity(
@@ -741,7 +756,21 @@ class BookingCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (isLive) ...[
+                          if (actionNeeded) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(color: _amber, borderRadius: BorderRadius.circular(999)),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.flag_rounded, size: 12, color: Colors.white),
+                                  SizedBox(width: 4),
+                                  Text('Action', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ] else if (isLive) ...[
                             const _LivePill(),
                             const SizedBox(width: 6),
                           ],

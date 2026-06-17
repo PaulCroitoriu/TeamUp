@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import 'package:teamup/core/enums/booking_status.dart';
 import 'package:teamup/core/enums/notification_type.dart';
 import 'package:teamup/core/theme/design_tokens.dart';
+import 'package:teamup/core/theme/sport_tile.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
 import 'package:teamup/features/auth/data/auth_service.dart';
 import 'package:teamup/features/auth/models/business_model.dart';
@@ -11,7 +14,8 @@ import 'package:teamup/features/auth/models/user_model.dart';
 import 'package:teamup/features/bookings/data/booking_service.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
 import 'package:teamup/features/games/data/game_service.dart';
-import 'package:teamup/features/games/screens/game_detail_screen.dart';
+import 'package:teamup/features/games/models/game_model.dart';
+import 'package:teamup/features/games/screens/game_panel.dart' show GamePanel;
 import 'package:teamup/features/messaging/data/messaging_service.dart';
 import 'package:teamup/features/messaging/models/message_model.dart';
 import 'package:teamup/features/notifications/data/notification_service.dart';
@@ -21,10 +25,11 @@ import 'package:teamup/features/venues/data/venue_service.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
 import 'package:teamup/shared/widgets/adaptive_sheet.dart';
+import 'package:teamup/shared/widgets/page_header.dart';
 
 final _log = Logger();
 
-const _splitBreakpoint = 760.0;
+const _chatBreakpoint = 760.0;
 
 class _BookingContext {
   const _BookingContext({required this.venue, required this.pitch, required this.booker, required this.business});
@@ -47,8 +52,6 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   final _bookingService = BookingService();
   final _venueService = VenueService();
   final _authService = AuthService();
-  final _notificationService = NotificationService();
-  final _messagingService = MessagingService();
 
   Future<_BookingContext>? _contextFuture;
   String? _loadedForBookingId;
@@ -91,198 +94,166 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Booking'), elevation: 0, scrolledUnderElevation: 0),
-      body: SelectionArea(
-        child: StreamBuilder<BookingModel>(
-          stream: _bookingService.streamBooking(widget.bookingId),
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snap.hasError) {
-              return Center(child: Text(snap.error.toString()));
-            }
-            final booking = snap.data!;
+    return StreamBuilder<BookingModel>(
+      stream: _bookingService.streamBooking(widget.bookingId),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return _LoadingScaffold(message: snap.error.toString());
+        }
+        if (!snap.hasData) return const _LoadingScaffold();
 
-            if (_loadedForBookingId != booking.id) {
-              _loadedForBookingId = booking.id;
-              _contextFuture = _loadContext(booking);
-            }
+        final booking = snap.data!;
+        if (_loadedForBookingId != booking.id) {
+          _loadedForBookingId = booking.id;
+          _contextFuture = _loadContext(booking);
+        }
 
-            return FutureBuilder<_BookingContext>(
-              future: _contextFuture,
-              builder: (context, ctxSnap) {
-                if (!ctxSnap.hasData) {
-                  if (ctxSnap.hasError) {
-                    return Center(child: Text(ctxSnap.error.toString()));
-                  }
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return _Layout(
-                  booking: booking,
-                  ctx: ctxSnap.data!,
-                  bookingService: _bookingService,
-                  notificationService: _notificationService,
-                  messagingService: _messagingService,
-                );
-              },
-            );
+        return FutureBuilder<_BookingContext>(
+          future: _contextFuture,
+          builder: (context, ctxSnap) {
+            if (ctxSnap.hasError) return _LoadingScaffold(message: ctxSnap.error.toString());
+            if (!ctxSnap.hasData) return const _LoadingScaffold();
+            return _BookingView(booking: booking, ctx: ctxSnap.data!);
           },
+        );
+      },
+    );
+  }
+}
+
+// ─── Loading / error scaffold ───────────────────────────────
+
+class _LoadingScaffold extends StatelessWidget {
+  const _LoadingScaffold({this.message});
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: TUColors.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: HeaderBackButton(),
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: message == null
+                    ? const CircularProgressIndicator()
+                    : Padding(padding: const EdgeInsets.all(24), child: Text(message!, textAlign: TextAlign.center)),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ─── Responsive layout ──────────────────────────────────────
+// ─── The booking view (one column + chat drawer/sheet) ──────
 
-class _Layout extends StatelessWidget {
-  const _Layout({
-    required this.booking,
-    required this.ctx,
-    required this.bookingService,
-    required this.notificationService,
-    required this.messagingService,
-  });
-
+class _BookingView extends StatefulWidget {
+  const _BookingView({required this.booking, required this.ctx});
   final BookingModel booking;
   final _BookingContext ctx;
-  final BookingService bookingService;
-  final NotificationService notificationService;
-  final MessagingService messagingService;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final width = MediaQuery.sizeOf(context).width;
-    final currentUserId = context.select<AuthBloc, String?>((b) => b.state.maybeMap(authenticated: (s) => s.user.uid, orElse: () => null));
-    final isBusinessOwner = currentUserId == ctx.business.ownerUid;
-
-    final details = _DetailsPanel(
-      booking: booking,
-      ctx: ctx,
-      currentUserId: currentUserId,
-      isBusinessOwner: isBusinessOwner,
-      bookingService: bookingService,
-      notificationService: notificationService,
-    );
-    final chat = _ChatPanel(
-      booking: booking,
-      ctx: ctx,
-      currentUserId: currentUserId,
-      isBusinessOwner: isBusinessOwner,
-      messagingService: messagingService,
-      notificationService: notificationService,
-    );
-
-    if (width >= _splitBreakpoint) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            flex: 5,
-            child: Center(
-              child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 560), child: details),
-            ),
-          ),
-          VerticalDivider(width: 1, thickness: 1, color: colors.onSurface.withAlpha(20)),
-          Expanded(flex: 4, child: chat),
-        ],
-      );
-    }
-
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          Material(
-            color: Theme.of(context).appBarTheme.backgroundColor ?? colors.surface,
-            child: TabBar(
-              tabs: const [
-                Tab(text: 'Details'),
-                Tab(text: 'Messages'),
-              ],
-              labelColor: colors.primary,
-              unselectedLabelColor: colors.onSurface.withAlpha(150),
-              indicatorColor: colors.primary,
-            ),
-          ),
-          Expanded(child: TabBarView(children: [details, chat])),
-        ],
-      ),
-    );
-  }
+  State<_BookingView> createState() => _BookingViewState();
 }
 
-// ─── Details panel ──────────────────────────────────────────
+class _BookingViewState extends State<_BookingView> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final _bookingService = BookingService();
+  final _notificationService = NotificationService();
 
-class _DetailsPanel extends StatelessWidget {
-  const _DetailsPanel({
-    required this.booking,
-    required this.ctx,
-    required this.currentUserId,
-    required this.isBusinessOwner,
-    required this.bookingService,
-    required this.notificationService,
-  });
+  BookingModel get booking => widget.booking;
+  _BookingContext get ctx => widget.ctx;
 
-  final BookingModel booking;
-  final _BookingContext ctx;
-  final String? currentUserId;
-  final bool isBusinessOwner;
-  final BookingService bookingService;
-  final NotificationService notificationService;
+  @override
+  void initState() {
+    super.initState();
+    // Opening the game clears its "Action" flag (unread join-request alerts) so
+    // it only flags once per request — handling them here returns it to normal.
+    _markGameActionsRead();
+  }
 
-  bool get _isBooker => currentUserId == booking.bookerId;
-  bool get _canConfirm => isBusinessOwner && booking.status == BookingStatus.pending;
-  bool get _canCancel => (isBusinessOwner || _isBooker) && booking.status != BookingStatus.cancelled;
-
-  // The booker can open an upcoming private booking to players (e.g. a single
-  // occurrence of a recurring booking when a regular drops out this week).
-  bool get _canOpenToPlayers =>
-      _isBooker &&
-      booking.gameId == null &&
-      booking.status != BookingStatus.cancelled &&
-      booking.startTime.isAfter(DateTime.now());
-
-  Future<void> _openToPlayers(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final nav = Navigator.of(context);
-    final cfg = await showAdaptiveSheet<({int capacity, int spotsFilled, bool approval})>(
-      context,
-      builder: (_) => _OpenToPlayersSheet(pitch: ctx.pitch, booking: booking),
-    );
-    if (cfg == null) return;
+  Future<void> _markGameActionsRead() async {
+    final gid = booking.gameId;
+    final uid = _uid;
+    if (gid == null || uid == null) return;
     try {
-      final game = await GameService().openBookingAsGame(
-        booking: booking,
-        sport: ctx.pitch.sport,
-        capacity: cfg.capacity,
-        spotsFilled: cfg.spotsFilled,
-        requiresApproval: cfg.approval,
+      final list = await _notificationService.streamForUser(uid).first;
+      for (final n in list) {
+        if (!n.read && n.gameId == gid && n.type == NotificationType.joinRequest) {
+          await _notificationService.markRead(n.id);
+        }
+      }
+    } catch (_) {}
+  }
+
+  // read (not select): auth doesn't change while on this page, and this getter
+  // is also used from tap/async handlers where select() isn't allowed.
+  String? get _uid => context.read<AuthBloc>().state.maybeMap(authenticated: (s) => s.user.uid, orElse: () => null);
+  bool get _isOwner => _uid == ctx.business.ownerUid;
+  bool get _isBooker => _uid == booking.bookerId;
+
+  bool get _canConfirm => _isOwner && booking.status == BookingStatus.pending;
+  bool get _canCancel => (_isOwner || _isBooker) && booking.status != BookingStatus.cancelled;
+  bool get _canOpenToPlayers =>
+      _isBooker && booking.gameId == null && booking.status != BookingStatus.cancelled && booking.startTime.isAfter(DateTime.now());
+
+  Future<void> _markMessagesRead() async {
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      final list = await _notificationService.streamForUser(uid).first;
+      for (final n in list) {
+        if (!n.read && n.type == NotificationType.newMessage && n.bookingId == booking.id) {
+          await _notificationService.markRead(n.id);
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _openChat() {
+    final uid = _uid;
+    if (uid == null) return;
+    _markMessagesRead();
+    if (MediaQuery.sizeOf(context).width >= _chatBreakpoint) {
+      _scaffoldKey.currentState?.openEndDrawer();
+    } else {
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: TUColors.bg,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(TUColors.rLg))),
+        builder: (_) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.85,
+            child: _ChatView(booking: booking, ctx: ctx, currentUserId: uid, isSheet: true),
+          ),
+        ),
       );
-      messenger.showSnackBar(const SnackBar(content: Text('Open to players — others can join now')));
-      nav.push(MaterialPageRoute(builder: (_) => GameDetailScreen(gameId: game.id)));
-    } catch (e, st) {
-      _log.e('Open booking as game failed', error: e, stackTrace: st);
-      messenger.showSnackBar(SnackBar(content: Text('Could not open: $e')));
     }
   }
 
-  Future<void> _confirm(BuildContext context) async {
+  Future<void> _confirm() async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await bookingService.confirmBooking(booking.id);
-      await notificationService.create(
+      await _bookingService.confirmBooking(booking.id);
+      await _notificationService.create(
         NotificationModel(
           id: '',
           recipientId: booking.bookerId,
           type: NotificationType.bookingConfirmed,
           title: 'Booking confirmed',
-          body:
-              '${ctx.pitch.name} • ${_fmtDate(booking.startTime)} '
-              '${_fmtTime(booking.startTime)}',
+          body: '${ctx.pitch.name} • ${_fmtDate(booking.startTime)} ${_fmtTime(booking.startTime)}',
           bookingId: booking.id,
           createdAt: DateTime.now(),
         ),
@@ -294,41 +265,32 @@ class _DetailsPanel extends StatelessWidget {
     }
   }
 
-  Future<void> _cancel(BuildContext context) async {
-    final uid = currentUserId;
+  Future<void> _cancel() async {
+    final uid = _uid;
     if (uid == null) return;
     final messenger = ScaffoldMessenger.of(context);
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Cancel booking?'),
-        content: const Text('This will release the slot and notify the other party.'),
+        content: const Text('This releases the slot and notifies the other party.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Keep')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Cancel booking', style: TextStyle(color: Color(0xFFB23B2E)))),
         ],
       ),
     );
     if (confirmed != true) return;
-
     try {
-      await bookingService.cancelBooking(booking.id);
-      final isOwnerCancelling = uid == ctx.business.ownerUid;
-      final recipient = isOwnerCancelling ? booking.bookerId : ctx.business.ownerUid;
-      await notificationService.create(
+      await _bookingService.cancelBooking(booking.id);
+      final recipient = uid == ctx.business.ownerUid ? booking.bookerId : ctx.business.ownerUid;
+      await _notificationService.create(
         NotificationModel(
           id: '',
           recipientId: recipient,
           type: NotificationType.bookingCancelled,
           title: 'Booking cancelled',
-          body:
-              '${ctx.pitch.name} • ${_fmtDate(booking.startTime)} '
-              '${_fmtTime(booking.startTime)}',
+          body: '${ctx.pitch.name} • ${_fmtDate(booking.startTime)} ${_fmtTime(booking.startTime)}',
           bookingId: booking.id,
           createdAt: DateTime.now(),
         ),
@@ -340,205 +302,360 @@ class _DetailsPanel extends StatelessWidget {
     }
   }
 
+  Future<void> _openToPlayers() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final cfg = await showAdaptiveSheet<({int capacity, int spotsFilled, bool approval})>(
+      context,
+      builder: (_) => _OpenToPlayersSheet(pitch: ctx.pitch, booking: booking),
+    );
+    if (cfg == null) return;
+    try {
+      await GameService().openBookingAsGame(
+        booking: booking,
+        sport: ctx.pitch.sport,
+        capacity: cfg.capacity,
+        spotsFilled: cfg.spotsFilled,
+        requiresApproval: cfg.approval,
+      );
+      messenger.showSnackBar(const SnackBar(content: Text('Open to players — others can join now')));
+    } catch (e, st) {
+      _log.e('Open booking as game failed', error: e, stackTrace: st);
+      messenger.showSnackBar(SnackBar(content: Text('Could not open: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final priceAmount = (booking.pricePaid / 100).toStringAsFixed(0);
+    final wide = MediaQuery.sizeOf(context).width >= _chatBreakpoint;
+    final uid = _uid;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-      children: [
-        _Hero(pitch: ctx.pitch),
-        const SizedBox(height: 16),
-        _StatusBanner(status: booking.status),
-        const SizedBox(height: 20),
-        Text(ctx.pitch.name, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800, height: 1.1)),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Icon(Icons.location_on_outlined, size: 14, color: colors.onSurface.withAlpha(140)),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                '${ctx.venue.name} • ${ctx.venue.city}',
-                style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface.withAlpha(170)),
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: TUColors.bg,
+      endDrawer: wide && uid != null
+          ? Drawer(
+              width: 420,
+              backgroundColor: TUColors.bg,
+              shape: const RoundedRectangleBorder(),
+              child: SafeArea(
+                child: _ChatView(
+                  booking: booking,
+                  ctx: ctx,
+                  currentUserId: uid,
+                  onClose: () => _scaffoldKey.currentState?.closeEndDrawer(),
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Booking #${booking.id.substring(0, 6).toUpperCase()}',
-          style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(110), letterSpacing: 0.5),
-        ),
-        const SizedBox(height: 24),
-
-        // ── When + Price row ──
-        _SectionCard(
-          children: [
-            _IconRow(
-              icon: Icons.calendar_today_rounded,
-              title: _fmtFullDate(booking.startTime),
-              subtitle: '${_fmtTime(booking.startTime)} – ${_fmtTime(booking.endTime)}',
-            ),
-            const Divider(height: 24),
-            _IconRow(
-              icon: Icons.payments_outlined,
-              title: '$priceAmount ${booking.currency}',
-              subtitle: 'Paid by booker',
-              titleColor: colors.primary,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // ── Booker ──
-        _SectionCard(
-          children: [
-            Row(
+            )
+          : null,
+      body: SafeArea(
+        bottom: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Avatar(user: ctx.booker),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${ctx.booker.firstName} ${ctx.booker.lastName}', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text(ctx.booker.email, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(140))),
-                    ],
-                  ),
+                PageHeader(
+                  leading: const HeaderBackButton(),
+                  title: ctx.pitch.name,
+                  subtitle: '${ctx.pitch.sport.label} · ${ctx.venue.name}, ${ctx.venue.city}',
+                  trailing: _MessageButton(userId: uid, bookingId: booking.id, onTap: uid == null ? null : _openChat),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: colors.secondary.withAlpha(20), borderRadius: BorderRadius.circular(6)),
-                  child: Text(
-                    'Booker',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: colors.secondary, letterSpacing: 0.5),
-                  ),
-                ),
+                Expanded(child: SelectionArea(child: _details(wide))),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _details(bool wide) {
+    // "Admin" = the people who manage this booking (the organiser/booker or the
+    // venue owner). Plain visitors don't see internal info (timeline, repeat,
+    // booking number).
+    final isAdmin = _isOwner || _isBooker;
+    final isGame = booking.gameId != null;
+
+    // ── Left column: about the slot ──
+    final left = <Widget>[
+      SportTile(
+        sport: ctx.pitch.sport,
+        height: 168,
+        borderRadius: BorderRadius.circular(TUColors.rLg),
+        glyphSize: 62,
+        overlay: [
+          Positioned(
+            top: 12,
+            left: 12,
+            child: TilePill(
+              icon: ctx.pitch.indoor ? Icons.roofing_rounded : Icons.wb_sunny_outlined,
+              label: ctx.pitch.indoor ? 'Indoor' : 'Outdoor',
+            ),
+          ),
+          Positioned(top: 12, right: 12, child: _StatusTag(status: booking.status)),
+        ],
+      ),
+      if (isAdmin) ...[
+        const SizedBox(height: 12),
+        Text(
+          'Booking #${booking.id.substring(0, 6).toUpperCase()}',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: TUColors.ink3, letterSpacing: 0.5),
+        ),
+      ],
+      const SizedBox(height: 14),
+      _factsCard(isAdmin: isAdmin, isGame: isGame),
+      const SizedBox(height: 12),
+      _organiserCard(),
+      if (booking.notes != null && booking.notes!.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        _SectionCard(
+          children: [
+            const _CardLabel('Notes'),
+            const SizedBox(height: 6),
+            Text(booking.notes!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TUColors.ink2, height: 1.5)),
           ],
         ),
+      ],
+    ];
 
-        if (booking.notes != null && booking.notes!.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _SectionCard(
-            children: [
-              Text(
-                'Notes',
-                style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700, color: colors.onSurface.withAlpha(170), letterSpacing: 0.5),
-              ),
-              const SizedBox(height: 6),
-              Text(booking.notes!, style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface.withAlpha(180), height: 1.5)),
-            ],
+    // ── Right column: the activity (team / actions / admin timeline) ──
+    final right = <Widget>[
+      if (isGame) GamePanel(gameId: booking.gameId!),
+      if (_canOpenToPlayers) ...[
+        FilledButton.icon(
+          onPressed: _openToPlayers,
+          icon: const Icon(Icons.group_add_rounded, size: 19),
+          label: const Text('Open to players'),
+          style: FilledButton.styleFrom(
+            backgroundColor: TUColors.brand,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 52),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(TUColors.rMd)),
+            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
           ),
-        ],
-
-        const SizedBox(height: 12),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Missing a regular this week? Open just this booking so others can join or ask to join.',
+          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3),
+        ),
+      ],
+      if (isAdmin) ...[
+        if (isGame || _canOpenToPlayers) const SizedBox(height: 12),
         _BookingTimeline(booking: booking),
+      ],
+      if (_canConfirm || _canCancel) ...[
+        const SizedBox(height: 16),
+        _actionsRow(),
+      ],
+    ];
 
-        // ── Open to players / view the open game ──
-        if (_isBooker && booking.gameId != null) ...[
-          const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => GameDetailScreen(gameId: booking.gameId!)),
-            ),
-            icon: const Icon(Icons.groups_rounded),
-            label: const Text('View open game'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.primary,
-              side: BorderSide(color: colors.primary.withAlpha(90)),
-              minimumSize: const Size(double.infinity, 50),
-            ),
-          ),
-        ] else if (_canOpenToPlayers) ...[
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => _openToPlayers(context),
-            icon: const Icon(Icons.group_add_rounded),
-            label: const Text('Open to players'),
-            style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Missing a regular this week? Open just this booking so others can join or ask to join.',
-            style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(140)),
-          ),
-        ],
+    if (wide) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 5, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: left)),
+            const SizedBox(width: 20),
+            Expanded(flex: 6, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: right)),
+          ],
+        ),
+      );
+    }
 
-        if (_canConfirm || _canCancel) ...[
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              if (_canConfirm)
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _confirm(context),
-                    icon: const Icon(Icons.check_rounded),
-                    label: const Text('Confirm'),
-                    style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                  ),
-                ),
-              if (_canConfirm && _canCancel) const SizedBox(width: 10),
-              if (_canCancel)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _cancel(context),
-                    icon: const Icon(Icons.close_rounded),
-                    label: const Text('Cancel'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: colors.error,
-                      side: BorderSide(color: colors.error.withAlpha(80)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+      children: [
+        ...left,
+        if (right.isNotEmpty) const SizedBox(height: 12),
+        ...right,
+      ],
+    );
+  }
+
+  Widget _factsCard({required bool isAdmin, required bool isGame}) {
+    final priceAmount = (booking.pricePaid / 100).round();
+    return _SectionCard(
+      children: [
+        _IconRow(
+          icon: Icons.calendar_today_rounded,
+          title: _fmtFullDate(booking.startTime),
+          subtitle: '${_fmtTime(booking.startTime)} – ${_fmtTime(booking.endTime)}',
+        ),
+        const Divider(height: 24, color: TUColors.line),
+        _IconRow(
+          icon: Icons.payments_outlined,
+          title: '$priceAmount ${booking.currency}',
+          subtitle: isGame ? 'Court total · split per player' : 'Full court',
+          accent: true,
+        ),
+        const Divider(height: 24, color: TUColors.line),
+        _IconRow(
+          icon: Icons.group_outlined,
+          title: 'Up to ${ctx.pitch.maxPlayers} players',
+          subtitle: [
+            ctx.pitch.indoor ? 'Indoor' : 'Outdoor',
+            if (ctx.pitch.surface != null) ctx.pitch.surface!,
+            if (ctx.pitch.isIlluminated) 'Floodlit',
+          ].join(' · '),
+        ),
+        // Recurring is an organiser/owner detail, not shown to visitors.
+        if (isAdmin && booking.recurring) ...[
+          const Divider(height: 24, color: TUColors.line),
+          const _IconRow(icon: Icons.event_repeat_rounded, title: 'Repeats weekly', subtitle: 'Same day & time'),
         ],
+      ],
+    );
+  }
+
+  Widget _organiserCard() {
+    return _SectionCard(
+      children: [
+        Row(
+          children: [
+            _InitialsAvatar(user: ctx.booker),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${ctx.booker.firstName} ${ctx.booker.lastName}'.trim(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: TUColors.ink)),
+                  const SizedBox(height: 2),
+                  Text(_isOwner ? ctx.booker.email : 'Organiser', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
+                ],
+              ),
+            ),
+            const _Pill(label: 'Organiser', bg: TUColors.brandSoft, fg: TUColors.brand700),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _actionsRow() {
+    return Row(
+      children: [
+        if (_canConfirm)
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: _confirm,
+              icon: const Icon(Icons.check_rounded, size: 19),
+              label: const Text('Confirm'),
+              style: FilledButton.styleFrom(
+                backgroundColor: TUColors.brand,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(TUColors.rMd)),
+                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        if (_canConfirm && _canCancel) const SizedBox(width: 10),
+        if (_canCancel)
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _cancel,
+              icon: const Icon(Icons.close_rounded, size: 19),
+              label: Text(booking.gameId != null && _isBooker ? 'Cancel game' : 'Cancel'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFB23B2E),
+                side: const BorderSide(color: Color(0xFFE7C3BC)),
+                minimumSize: const Size(0, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(TUColors.rMd)),
+                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
       ],
     );
   }
 }
 
-// ─── Hero image ─────────────────────────────────────────────
+// ─── Message button (header trailing) ───────────────────────
 
-class _Hero extends StatelessWidget {
-  const _Hero({required this.pitch});
-  final PitchModel pitch;
+class _MessageButton extends StatelessWidget {
+  const _MessageButton({required this.onTap, required this.userId, required this.bookingId});
+  final VoidCallback? onTap;
+  final String? userId;
+  final String bookingId;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final cover = pitch.imageUrls.isNotEmpty ? pitch.imageUrls.first : null;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: cover != null ? Image.network(cover, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _heroFallback(colors)) : _heroFallback(colors),
-      ),
-    );
-  }
-
-  Widget _heroFallback(ColorScheme colors) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.primary.withAlpha(40), colors.secondary.withAlpha(40)],
+    final button = Material(
+      color: TUColors.surface2,
+      borderRadius: BorderRadius.circular(TUColors.rMd),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        child: Opacity(
+          opacity: onTap == null ? 0.5 : 1,
+          child: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
+            child: const Icon(Icons.chat_bubble_outline_rounded, size: 22, color: TUColors.ink2),
+          ),
         ),
       ),
-      child: Center(child: Image.asset(pitch.sport.iconPath, width: 56, height: 56, color: colors.onSurface.withAlpha(120))),
+    );
+
+    final uid = userId;
+    if (uid == null) return button;
+
+    return StreamBuilder<List<NotificationModel>>(
+      stream: NotificationService().streamForUser(uid),
+      builder: (context, snap) {
+        final unread = (snap.data ?? const <NotificationModel>[])
+            .any((n) => !n.read && n.type == NotificationType.newMessage && n.bookingId == bookingId);
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            button,
+            if (unread)
+              Positioned(
+                top: -3,
+                right: -3,
+                child: Container(
+                  width: 13,
+                  height: 13,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5484D),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: TUColors.bg, width: 2),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
 
-// ─── Status banner ──────────────────────────────────────────
+// ─── Hero status tag ────────────────────────────────────────
+
+class _StatusTag extends StatelessWidget {
+  const _StatusTag({required this.status});
+  final BookingStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, fg) = switch (status) {
+      BookingStatus.pending => ('Pending', const Color(0xFF9A6B00)),
+      BookingStatus.confirmed => ('Confirmed', TUColors.brand700),
+      BookingStatus.cancelled => ('Cancelled', const Color(0xFFB23B2E)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .94), borderRadius: BorderRadius.circular(TUColors.rPill)),
+      child: Text(label, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: fg)),
+    );
+  }
+}
+
+// ─── Timeline ───────────────────────────────────────────────
 
 class _BookingTimeline extends StatelessWidget {
   const _BookingTimeline({required this.booking});
@@ -553,35 +670,26 @@ class _BookingTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    final entries = <(IconData, String, DateTime?, Color)>[
-      (Icons.add_circle_outline, 'Created', booking.createdAt, colors.onSurface.withAlpha(160)),
-      if (booking.confirmedAt != null) (Icons.check_circle_outline, 'Confirmed', booking.confirmedAt, const Color(0xFF1E7E3F)),
-      if (booking.paidAt != null) (Icons.payments_outlined, 'Paid', booking.paidAt, colors.primary),
-      if (booking.cancelledAt != null) (Icons.cancel_outlined, 'Cancelled', booking.cancelledAt, colors.error),
+    final entries = <(IconData, String, DateTime, Color)>[
+      (Icons.add_circle_outline, 'Created', booking.createdAt, TUColors.ink3),
+      if (booking.confirmedAt != null && booking.status != BookingStatus.cancelled)
+        (Icons.check_circle_outline, 'Confirmed', booking.confirmedAt!, TUColors.brand700),
+      if (booking.paidAt != null) (Icons.payments_outlined, 'Paid', booking.paidAt!, TUColors.brand700),
+      if (booking.status == BookingStatus.cancelled)
+        (Icons.cancel_outlined, 'Cancelled', booking.cancelledAt ?? booking.createdAt, const Color(0xFFB23B2E)),
     ];
 
     return _SectionCard(
       children: [
-        Text(
-          'Timeline',
-          style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700, color: colors.onSurface.withAlpha(170), letterSpacing: 0.5),
-        ),
+        const _CardLabel('Timeline'),
         const SizedBox(height: 10),
         for (var i = 0; i < entries.length; i++) ...[
           Row(
             children: [
               Icon(entries[i].$1, size: 16, color: entries[i].$4),
               const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  entries[i].$2,
-                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700, color: colors.onSurface),
-                ),
-              ),
-              Text(_stamp(entries[i].$3!), style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(150))),
+              Expanded(child: Text(entries[i].$2, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: TUColors.ink))),
+              Text(_stamp(entries[i].$3), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TUColors.ink3)),
             ],
           ),
           if (i < entries.length - 1) const SizedBox(height: 8),
@@ -591,41 +699,7 @@ class _BookingTimeline extends StatelessWidget {
   }
 }
 
-class _StatusBanner extends StatelessWidget {
-  const _StatusBanner({required this.status});
-  final BookingStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final (color, icon, label) = switch (status) {
-      BookingStatus.pending => (colors.secondary, Icons.hourglass_top_rounded, 'Awaiting payment'),
-      BookingStatus.confirmed => (const Color(0xFF34A853), Icons.check_circle_rounded, 'Confirmed'),
-      BookingStatus.cancelled => (colors.error, Icons.cancel_rounded, 'Cancelled'),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withAlpha(20),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withAlpha(60)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 10),
-          Text(
-            label,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Section card ───────────────────────────────────────────
+// ─── Shared bits ────────────────────────────────────────────
 
 class _SectionCard extends StatelessWidget {
   const _SectionCard({required this.children});
@@ -633,49 +707,52 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.onSurface.withAlpha(20)),
+        color: TUColors.surface,
+        borderRadius: BorderRadius.circular(TUColors.rLg),
+        border: Border.all(color: TUColors.line),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
   }
 }
 
+class _CardLabel extends StatelessWidget {
+  const _CardLabel(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) {
+    return Text(text.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: TUColors.ink3));
+  }
+}
+
 class _IconRow extends StatelessWidget {
-  const _IconRow({required this.icon, required this.title, required this.subtitle, this.titleColor});
+  const _IconRow({required this.icon, required this.title, required this.subtitle, this.accent = false});
   final IconData icon;
   final String title;
   final String subtitle;
-  final Color? titleColor;
+  final bool accent;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     return Row(
       children: [
         Container(
           width: 38,
           height: 38,
-          decoration: BoxDecoration(color: colors.primary.withAlpha(20), borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, size: 18, color: colors.primary),
+          decoration: BoxDecoration(color: TUColors.brandTint, borderRadius: BorderRadius.circular(11)),
+          child: Icon(icon, size: 18, color: TUColors.brand700),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700, color: titleColor),
-              ),
+              Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: accent ? TUColors.brand700 : TUColors.ink)),
               const SizedBox(height: 2),
-              Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(140))),
+              Text(subtitle, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
             ],
           ),
         ),
@@ -684,77 +761,101 @@ class _IconRow extends StatelessWidget {
   }
 }
 
-// ─── Avatar ─────────────────────────────────────────────────
-
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.user});
+class _InitialsAvatar extends StatelessWidget {
+  const _InitialsAvatar({required this.user});
   final UserModel user;
-  static const double size = 44;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final initials = (user.firstName.isNotEmpty ? user.firstName[0] : '') + (user.lastName.isNotEmpty ? user.lastName[0] : '');
-
-    if (user.photoUrl != null && user.photoUrl!.isNotEmpty) {
-      return ClipOval(
-        child: Image.network(user.photoUrl!, width: size, height: size, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _initials(initials, colors)),
-      );
-    }
-    return _initials(initials, colors);
-  }
-
-  Widget _initials(String text, ColorScheme colors) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: colors.primary.withAlpha(28), shape: BoxShape.circle),
-      child: Center(
-        child: Text(
-          text.toUpperCase(),
-          style: TextStyle(fontSize: size * 0.36, fontWeight: FontWeight.w700, color: colors.primary),
-        ),
-      ),
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: TUColors.brandSoft,
+      child: Text(user.initials, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: TUColors.brand700)),
     );
   }
 }
 
-// ─── Chat panel ─────────────────────────────────────────────
-
-class _ChatPanel extends StatefulWidget {
-  const _ChatPanel({
-    required this.booking,
-    required this.ctx,
-    required this.currentUserId,
-    required this.isBusinessOwner,
-    required this.messagingService,
-    required this.notificationService,
-  });
-
-  final BookingModel booking;
-  final _BookingContext ctx;
-  final String? currentUserId;
-  final bool isBusinessOwner;
-  final MessagingService messagingService;
-  final NotificationService notificationService;
-
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.bg, required this.fg});
+  final String label;
+  final Color bg;
+  final Color fg;
   @override
-  State<_ChatPanel> createState() => _ChatPanelState();
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(TUColors.rPill)),
+      child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: fg)),
+    );
+  }
 }
 
-class _ChatPanelState extends State<_ChatPanel> {
+// ─── Chat (drawer on desktop, bottom sheet on mobile) ───────
+
+class _ChatView extends StatefulWidget {
+  const _ChatView({required this.booking, required this.ctx, required this.currentUserId, this.isSheet = false, this.onClose});
+  final BookingModel booking;
+  final _BookingContext ctx;
+  final String currentUserId;
+  final bool isSheet;
+  final VoidCallback? onClose;
+
+  @override
+  State<_ChatView> createState() => _ChatViewState();
+}
+
+class _ChatViewState extends State<_ChatView> {
+  final _messaging = MessagingService();
+  final _notifications = NotificationService();
+  final _authService = AuthService();
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   bool _sending = false;
 
-  String get _otherPartyId => widget.isBusinessOwner ? widget.booking.bookerId : widget.ctx.business.ownerUid;
+  List<String> _gamePlayers = const [];
+  StreamSubscription<GameModel>? _gameSub;
 
-  String get _otherPartyName => widget.isBusinessOwner ? widget.ctx.booker.firstName : widget.ctx.business.name;
+  // senderId → short name, for labelling incoming messages.
+  Map<String, String> _names = {};
 
-  List<String> get _participants => [widget.booking.bookerId, widget.ctx.business.ownerUid];
+  Future<void> _loadNames() async {
+    try {
+      final users = await _authService.getUsersByIds(_participants);
+      if (mounted) setState(() => _names = {for (final u in users) u.uid: u.shortName});
+    } catch (_) {}
+  }
+
+  bool get _isGame => widget.booking.gameId != null;
+  bool get _isOwner => widget.currentUserId == widget.ctx.business.ownerUid;
+
+  String get _title => _isGame ? '${widget.ctx.pitch.sport.label} team' : (_isOwner ? '${widget.ctx.booker.firstName} ${widget.ctx.booker.lastName}'.trim() : widget.ctx.business.name);
+  String get _subtitle => _isGame ? 'Everyone in this game' : 'About this booking';
+
+  List<String> get _participants => _isGame
+      ? {..._gamePlayers, widget.booking.bookerId, widget.ctx.business.ownerUid}.toList()
+      : [widget.booking.bookerId, widget.ctx.business.ownerUid];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNames();
+    final gameId = widget.booking.gameId;
+    if (gameId != null) {
+      _gameSub = GameService().streamGame(gameId).listen(
+        (g) {
+          if (!mounted) return;
+          final changed = g.playerIds.length != _gamePlayers.length;
+          setState(() => _gamePlayers = g.playerIds);
+          if (changed) _loadNames();
+        },
+        onError: (Object e, StackTrace st) => _log.w('Chat roster stream failed', error: e, stackTrace: st),
+      );
+    }
+  }
 
   @override
   void dispose() {
+    _gameSub?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -762,40 +863,40 @@ class _ChatPanelState extends State<_ChatPanel> {
 
   Future<void> _send() async {
     final text = _controller.text.trim();
-    final uid = widget.currentUserId;
-    if (text.isEmpty || uid == null || _sending) return;
-
+    if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final result = await widget.messagingService.sendBookingMessage(
+      final result = await _messaging.sendBookingMessage(
         bookingId: widget.booking.id,
-        senderId: uid,
+        senderId: widget.currentUserId,
         participantIds: _participants,
         text: text,
       );
       _controller.clear();
-
-      // Notify the other side.
-      try {
-        final senderName = widget.isBusinessOwner ? widget.ctx.business.name : '${widget.ctx.booker.firstName} ${widget.ctx.booker.lastName}';
-        await widget.notificationService.create(
-          NotificationModel(
-            id: '',
-            recipientId: _otherPartyId,
-            type: NotificationType.newMessage,
-            title: 'New message from $senderName',
-            body: text.length > 80 ? '${text.substring(0, 80)}…' : text,
-            bookingId: widget.booking.id,
-            conversationId: result.conversationId,
-            createdAt: DateTime.now(),
-          ),
-        );
-      } catch (e, st) {
-        _log.w('Failed to write newMessage notification', error: e, stackTrace: st);
+      // Notify everyone in the conversation except the sender (the other party
+      // in a 1-on-1 booking chat; the whole team in a game).
+      final recipients = _participants.where((id) => id != widget.currentUserId).toSet();
+      final preview = text.length > 80 ? '${text.substring(0, 80)}…' : text;
+      for (final r in recipients) {
+        try {
+          await _notifications.create(
+            NotificationModel(
+              id: '',
+              recipientId: r,
+              type: NotificationType.newMessage,
+              title: 'New message · $_title',
+              body: preview,
+              bookingId: widget.booking.id,
+              conversationId: result.conversationId,
+              createdAt: DateTime.now(),
+            ),
+          );
+        } catch (e, st) {
+          _log.w('newMessage notification failed for $r', error: e, stackTrace: st);
+        }
       }
-
-      _scrollToBottomSoon();
+      _scrollSoon();
     } catch (e, st) {
       _log.e('Send message failed', error: e, stackTrace: st);
       messenger.showSnackBar(SnackBar(content: Text(e.toString())));
@@ -804,7 +905,7 @@ class _ChatPanelState extends State<_ChatPanel> {
     }
   }
 
-  void _scrollToBottomSoon() {
+  void _scrollSoon() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
@@ -813,105 +914,86 @@ class _ChatPanelState extends State<_ChatPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final convId = widget.messagingService.bookingConversationId(widget.booking.id);
-    final uid = widget.currentUserId;
-
+    final convId = _messaging.bookingConversationId(widget.booking.id);
     return Column(
       children: [
+        if (widget.isSheet)
+          Center(child: Container(margin: const EdgeInsets.only(top: 10, bottom: 4), width: 42, height: 5, decoration: BoxDecoration(color: TUColors.line2, borderRadius: BorderRadius.circular(TUColors.rPill)))),
         // ── Header ──
         Container(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            border: Border(bottom: BorderSide(color: colors.onSurface.withAlpha(20))),
-          ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: TUColors.line))),
           child: Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(color: colors.primary.withAlpha(20), shape: BoxShape.circle),
-                child: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: colors.primary),
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(color: TUColors.brandTint, shape: BoxShape.circle),
+                child: Icon(_isGame ? Icons.groups_rounded : Icons.chat_bubble_outline_rounded, size: 19, color: TUColors.brand700),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 11),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_otherPartyName, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w800)),
-                    Text('About this booking', style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(140))),
+                    Text(_title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: TUColors.ink)),
+                    Text(_subtitle, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: TUColors.ink3)),
                   ],
                 ),
+              ),
+              IconButton(
+                onPressed: widget.onClose ?? () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.close_rounded, size: 20, color: TUColors.ink2),
               ),
             ],
           ),
         ),
-
-        // ── Messages list ──
+        // ── Messages ──
         Expanded(
-          child: uid == null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text('Sign in to send messages.', style: TextStyle(color: colors.onSurface.withAlpha(140))),
-                  ),
-                )
-              : StreamBuilder<List<MessageModel>>(
-                  stream: widget.messagingService.streamMessages(conversationId: convId, userId: uid),
-                  builder: (context, snap) {
-                    if (snap.hasError) {
-                      return Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Center(
-                          child: Text(
-                            'Messages failed to load:\n${snap.error}',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: colors.error, fontSize: 12),
-                          ),
-                        ),
-                      );
-                    }
-                    final messages = snap.data ?? const <MessageModel>[];
-                    if (messages.isEmpty) {
-                      return _ChatEmpty(otherName: _otherPartyName);
-                    }
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_scrollController.hasClients) {
-                        final pos = _scrollController.position;
-                        if (pos.maxScrollExtent - pos.pixels < 200) {
-                          _scrollController.jumpTo(pos.maxScrollExtent);
-                        }
-                      }
-                    });
-                    return ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                      itemCount: messages.length,
-                      itemBuilder: (_, i) {
-                        final m = messages[i];
-                        final prev = i > 0 ? messages[i - 1] : null;
-                        final showGap = prev == null || m.sentAt.difference(prev.sentAt).inMinutes >= 5 || prev.senderId != m.senderId;
-                        return Padding(
-                          padding: EdgeInsets.only(top: showGap ? 8 : 2),
-                          child: _Bubble(message: m, isMine: m.senderId == uid),
-                        );
-                      },
-                    );
-                  },
-                ),
+          child: StreamBuilder<List<MessageModel>>(
+            stream: _messaging.streamMessages(conversationId: convId, userId: widget.currentUserId),
+            builder: (context, snap) {
+              if (snap.hasError) {
+                return Padding(padding: const EdgeInsets.all(20), child: Center(child: Text('Messages failed to load:\n${snap.error}', textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFB23B2E), fontSize: 12))));
+              }
+              final messages = snap.data ?? const <MessageModel>[];
+              if (messages.isEmpty) return _ChatEmpty(name: _title);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (_scrollController.hasClients) {
+                  final pos = _scrollController.position;
+                  if (pos.maxScrollExtent - pos.pixels < 200) _scrollController.jumpTo(pos.maxScrollExtent);
+                }
+              });
+              return ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                itemCount: messages.length,
+                itemBuilder: (_, i) {
+                  final m = messages[i];
+                  final prev = i > 0 ? messages[i - 1] : null;
+                  final mine = m.senderId == widget.currentUserId;
+                  final newSender = prev == null || prev.senderId != m.senderId;
+                  final gap = prev == null || m.sentAt.difference(prev.sentAt).inMinutes >= 5 || newSender;
+                  return Padding(
+                    padding: EdgeInsets.only(top: gap ? 8 : 2),
+                    child: _Bubble(
+                      message: m,
+                      isMine: mine,
+                      // Name shown above the first bubble of an incoming run.
+                      senderName: (!mine && newSender) ? (_names[m.senderId] ?? 'Player') : null,
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         ),
-
         // ── Input ──
         SafeArea(
           top: false,
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(top: BorderSide(color: colors.onSurface.withAlpha(20))),
-            ),
+            decoration: const BoxDecoration(border: Border(top: BorderSide(color: TUColors.line))),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -920,13 +1002,14 @@ class _ChatPanelState extends State<_ChatPanel> {
                     controller: _controller,
                     minLines: 1,
                     maxLines: 4,
-                    enabled: uid != null,
+                    style: const TextStyle(fontSize: 14, color: TUColors.ink),
                     decoration: InputDecoration(
                       hintText: 'Write a message…',
+                      hintStyle: const TextStyle(fontSize: 14, color: TUColors.ink3),
                       filled: true,
-                      fillColor: colors.onSurface.withAlpha(10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                      fillColor: TUColors.surface2,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(TUColors.rPill), borderSide: BorderSide.none),
                     ),
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => _send(),
@@ -934,10 +1017,10 @@ class _ChatPanelState extends State<_ChatPanel> {
                 ),
                 const SizedBox(width: 8),
                 Material(
-                  color: _sending || uid == null ? colors.onSurface.withAlpha(20) : colors.primary,
+                  color: _sending ? TUColors.line2 : TUColors.brand,
                   shape: const CircleBorder(),
                   child: InkWell(
-                    onTap: _sending || uid == null ? null : _send,
+                    onTap: _sending ? null : _send,
                     customBorder: const CircleBorder(),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
@@ -957,28 +1040,22 @@ class _ChatPanelState extends State<_ChatPanel> {
 }
 
 class _ChatEmpty extends StatelessWidget {
-  const _ChatEmpty({required this.otherName});
-  final String otherName;
+  const _ChatEmpty({required this.name});
+  final String name;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.chat_bubble_outline_rounded, size: 44, color: colors.onSurface.withAlpha(60)),
+            Icon(Icons.chat_bubble_outline_rounded, size: 44, color: TUColors.ink3.withValues(alpha: .5)),
             const SizedBox(height: 14),
-            Text('No messages yet', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            const Text('No messages yet', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: TUColors.ink)),
             const SizedBox(height: 6),
-            Text(
-              'Say hi to $otherName about the booking.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(140)),
-            ),
+            Text('Say hi to $name.', textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TUColors.ink3)),
           ],
         ),
       ),
@@ -987,50 +1064,56 @@ class _ChatEmpty extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.message, required this.isMine});
+  const _Bubble({required this.message, required this.isMine, this.senderName});
   final MessageModel message;
   final bool isMine;
+  final String? senderName;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final bg = isMine ? colors.primary : colors.onSurface.withAlpha(12);
-    final fg = isMine ? Colors.white : colors.onSurface;
-    final timeColor = isMine ? Colors.white.withAlpha(190) : colors.onSurface.withAlpha(140);
-
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.72),
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(14),
-            topRight: const Radius.circular(14),
-            bottomLeft: Radius.circular(isMine ? 14 : 4),
-            bottomRight: Radius.circular(isMine ? 4 : 14),
+    final bg = isMine ? TUColors.brand : TUColors.surface;
+    final fg = isMine ? Colors.white : TUColors.ink;
+    return Column(
+      crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        if (senderName != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 3),
+            child: Text(senderName!, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: TUColors.brand700)),
+          ),
+        Align(
+          alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.72),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(14),
+                topRight: const Radius.circular(14),
+                bottomLeft: Radius.circular(isMine ? 14 : 4),
+                bottomRight: Radius.circular(isMine ? 4 : 14),
+              ),
+              border: isMine ? null : Border.all(color: TUColors.line),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(message.text, style: TextStyle(fontSize: 14, color: fg)),
+                const SizedBox(height: 2),
+                Text(_fmtTime(message.sentAt), style: TextStyle(fontSize: 10, color: isMine ? Colors.white.withValues(alpha: .8) : TUColors.ink3)),
+              ],
+            ),
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(message.text, style: theme.textTheme.bodyMedium?.copyWith(color: fg)),
-            const SizedBox(height: 2),
-            Text(_fmtTime(message.sentAt), style: TextStyle(fontSize: 10, color: timeColor)),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }
 
 // ─── Open-to-players sheet ──────────────────────────────────
 
-/// Lets the booker turn a private booking into an open game for this occurrence:
-/// pick the team size, how many are already coming, and whether to vet joiners.
 class _OpenToPlayersSheet extends StatefulWidget {
   const _OpenToPlayersSheet({required this.pitch, required this.booking});
   final PitchModel pitch;
@@ -1060,7 +1143,7 @@ class _OpenToPlayersSheetState extends State<_OpenToPlayersSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (mobile)
-            Container(margin: const EdgeInsets.only(top: 10, bottom: 2), width: 42, height: 5, decoration: BoxDecoration(color: TUColors.line2, borderRadius: BorderRadius.circular(TUColors.rPill))),
+            Center(child: Container(margin: const EdgeInsets.only(top: 10, bottom: 2), width: 42, height: 5, decoration: BoxDecoration(color: TUColors.line2, borderRadius: BorderRadius.circular(TUColors.rPill)))),
           const Padding(
             padding: EdgeInsets.fromLTRB(24, 18, 24, 4),
             child: Text('Open to players', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: TUColors.ink)),
@@ -1131,9 +1214,7 @@ class _OpenToPlayersSheetState extends State<_OpenToPlayersSheet> {
             decoration: const BoxDecoration(border: Border(top: BorderSide(color: TUColors.line))),
             padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
             child: FilledButton(
-              onPressed: needs > 0
-                  ? () => Navigator.of(context).pop((capacity: _capacity, spotsFilled: _filled, approval: _approval))
-                  : null,
+              onPressed: needs > 0 ? () => Navigator.of(context).pop((capacity: _capacity, spotsFilled: _filled, approval: _approval)) : null,
               style: FilledButton.styleFrom(
                 backgroundColor: TUColors.brand,
                 foregroundColor: Colors.white,
@@ -1205,11 +1286,7 @@ class _SheetStepBtn extends StatelessWidget {
 
 // ─── Helpers ────────────────────────────────────────────────
 
-String _fmtTime(DateTime d) {
-  final h = d.hour.toString().padLeft(2, '0');
-  final m = d.minute.toString().padLeft(2, '0');
-  return '$h:$m';
-}
+String _fmtTime(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
 String _fmtDate(DateTime d) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

@@ -99,9 +99,11 @@ service cloud.firestore {
         && request.auth.uid in resource.data.participantIds;
       allow create: if request.auth != null
         && request.auth.uid in request.resource.data.participantIds;
-      // Updates (lastMessage, lastMessageAt) come from any participant.
+      // Updates (lastMessage, lastMessageAt, participantIds) come from anyone
+      // who lists themselves in the new participant set — this lets a freshly
+      // joined game player add themselves and post without a prior read.
       allow update: if request.auth != null
-        && request.auth.uid in resource.data.participantIds;
+        && request.auth.uid in request.resource.data.participantIds;
 
       match /messages/{messageId} {
         // Membership is mirrored on each message doc, so no cross-doc

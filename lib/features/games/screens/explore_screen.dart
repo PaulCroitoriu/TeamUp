@@ -227,10 +227,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       backgroundColor: TUColors.bg,
       body: SafeArea(
         bottom: false,
-        child: Padding(
-          // Roomier gutter on tablet/desktop; flush 20px page padding on mobile.
-          padding: EdgeInsets.all(_pageGutter(context)),
-          child: SelectionArea(
+        child: SelectionArea(
             child: StreamBuilder<List<VenueModel>>(
               stream: _venueService.streamVenues(),
               builder: (context, venuesSnap) {
@@ -239,7 +236,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
                 return Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1180),
+                    constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
                     child: Column(
                   children: [
                     PageHeader(
@@ -410,18 +407,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
-}
-
-/// Extra horizontal page padding: flush on mobile, roomier on tablet/desktop
-/// so the wide sidebar layout isn't cramped against the content.
-double _pageGutter(BuildContext context) {
-  final w = MediaQuery.sizeOf(context).width;
-  if (w >= 1100) return 32;
-  if (w >= 700) return 16;
-  return 0;
 }
 
 // ─── Pitches / Open games toggle ────────────────────────────
@@ -772,13 +759,15 @@ class _SportPickerSheetState extends State<_SportPickerSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (mobile)
-            Container(
-              margin: const EdgeInsets.only(top: 10, bottom: 2),
-              width: 42,
-              height: 5,
-              decoration: BoxDecoration(
-                color: TUColors.line2,
-                borderRadius: BorderRadius.circular(TUColors.rPill),
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 2),
+                width: 42,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: TUColors.line2,
+                  borderRadius: BorderRadius.circular(TUColors.rPill),
+                ),
               ),
             ),
           // ── header ──
@@ -1466,13 +1455,15 @@ class _FilterSheetState extends State<_FilterSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (mobile)
-              Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 2),
-                width: 42,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: TUColors.line2,
-                  borderRadius: BorderRadius.circular(TUColors.rPill),
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 2),
+                  width: 42,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: TUColors.line2,
+                    borderRadius: BorderRadius.circular(TUColors.rPill),
+                  ),
                 ),
               ),
             // ── header ──

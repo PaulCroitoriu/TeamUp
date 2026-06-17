@@ -17,7 +17,7 @@ mixin _$ConversationModel {
 
  String get id; ConversationKind get kind;/// Set when [kind] is `booking`.
  String? get bookingId;/// Set when [kind] is `game`.
- String? get gameId; List<String> get participantIds; String? get lastMessageText; String? get lastMessageSenderId;@TimestampConverter() DateTime? get lastMessageAt;@TimestampConverter() DateTime get createdAt;
+ String? get gameId; List<String> get participantIds; String? get lastMessageText; String? get lastMessageSenderId;@NullableTimestampConverter() DateTime? get lastMessageAt;@TimestampConverter() DateTime get createdAt;
 /// Create a copy of ConversationModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -50,7 +50,7 @@ abstract mixin class $ConversationModelCopyWith<$Res>  {
   factory $ConversationModelCopyWith(ConversationModel value, $Res Function(ConversationModel) _then) = _$ConversationModelCopyWithImpl;
 @useResult
 $Res call({
- String id, ConversationKind kind, String? bookingId, String? gameId, List<String> participantIds, String? lastMessageText, String? lastMessageSenderId,@TimestampConverter() DateTime? lastMessageAt,@TimestampConverter() DateTime createdAt
+ String id, ConversationKind kind, String? bookingId, String? gameId, List<String> participantIds, String? lastMessageText, String? lastMessageSenderId,@NullableTimestampConverter() DateTime? lastMessageAt,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -163,7 +163,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @TimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @NullableTimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ConversationModel() when $default != null:
 return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participantIds,_that.lastMessageText,_that.lastMessageSenderId,_that.lastMessageAt,_that.createdAt);case _:
@@ -184,7 +184,7 @@ return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participa
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @TimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @NullableTimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
 switch (_that) {
 case _ConversationModel():
 return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participantIds,_that.lastMessageText,_that.lastMessageSenderId,_that.lastMessageAt,_that.createdAt);case _:
@@ -204,7 +204,7 @@ return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participa
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @TimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  ConversationKind kind,  String? bookingId,  String? gameId,  List<String> participantIds,  String? lastMessageText,  String? lastMessageSenderId, @NullableTimestampConverter()  DateTime? lastMessageAt, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
 switch (_that) {
 case _ConversationModel() when $default != null:
 return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participantIds,_that.lastMessageText,_that.lastMessageSenderId,_that.lastMessageAt,_that.createdAt);case _:
@@ -219,7 +219,7 @@ return $default(_that.id,_that.kind,_that.bookingId,_that.gameId,_that.participa
 @JsonSerializable()
 
 class _ConversationModel implements ConversationModel {
-  const _ConversationModel({required this.id, required this.kind, this.bookingId, this.gameId, final  List<String> participantIds = const [], this.lastMessageText, this.lastMessageSenderId, @TimestampConverter() this.lastMessageAt, @TimestampConverter() required this.createdAt}): _participantIds = participantIds;
+  const _ConversationModel({required this.id, required this.kind, this.bookingId, this.gameId, final  List<String> participantIds = const [], this.lastMessageText, this.lastMessageSenderId, @NullableTimestampConverter() this.lastMessageAt, @TimestampConverter() required this.createdAt}): _participantIds = participantIds;
   factory _ConversationModel.fromJson(Map<String, dynamic> json) => _$ConversationModelFromJson(json);
 
 @override final  String id;
@@ -237,7 +237,7 @@ class _ConversationModel implements ConversationModel {
 
 @override final  String? lastMessageText;
 @override final  String? lastMessageSenderId;
-@override@TimestampConverter() final  DateTime? lastMessageAt;
+@override@NullableTimestampConverter() final  DateTime? lastMessageAt;
 @override@TimestampConverter() final  DateTime createdAt;
 
 /// Create a copy of ConversationModel
@@ -273,7 +273,7 @@ abstract mixin class _$ConversationModelCopyWith<$Res> implements $ConversationM
   factory _$ConversationModelCopyWith(_ConversationModel value, $Res Function(_ConversationModel) _then) = __$ConversationModelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, ConversationKind kind, String? bookingId, String? gameId, List<String> participantIds, String? lastMessageText, String? lastMessageSenderId,@TimestampConverter() DateTime? lastMessageAt,@TimestampConverter() DateTime createdAt
+ String id, ConversationKind kind, String? bookingId, String? gameId, List<String> participantIds, String? lastMessageText, String? lastMessageSenderId,@NullableTimestampConverter() DateTime? lastMessageAt,@TimestampConverter() DateTime createdAt
 });
 
 

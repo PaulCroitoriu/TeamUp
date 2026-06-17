@@ -4,6 +4,8 @@ import 'package:teamup/core/theme/design_tokens.dart';
 import 'package:teamup/core/theme/theme_cubit.dart';
 import 'package:teamup/shared/widgets/page_header.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
+import 'package:teamup/features/auth/data/auth_service.dart';
+import 'package:teamup/features/auth/models/user_model.dart';
 import 'package:teamup/features/settings/screens/profile_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -14,19 +16,25 @@ class SettingsScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final isWide = MediaQuery.sizeOf(context).width >= 600;
+    final businessId = context.select<AuthBloc, String?>(
+      (b) => b.state.maybeMap(
+        authenticated: (s) => s.user.role == UserRole.business ? s.user.businessId : null,
+        orElse: () => null,
+      ),
+    );
 
     return Scaffold(
       backgroundColor: TUColors.bg,
       body: SafeArea(
         bottom: false,
-        child: Column(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+            child: Column(
           children: [
             const PageHeader(title: 'Settings'),
             Expanded(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 600),
-                  child: ListView(
+              child: ListView(
                     padding: EdgeInsets.symmetric(
                       horizontal: isWide ? 32 : 16,
                       vertical: 24,
@@ -46,6 +54,15 @@ class SettingsScreen extends StatelessWidget {
                         ),
                       ),
                       const Divider(height: 1, indent: 56),
+
+                      // ── Business section (owners only) ──
+                      if (businessId != null) ...[
+                        const SizedBox(height: 28),
+                        _SectionHeader(label: 'Business'),
+                        const SizedBox(height: 8),
+                        _AutoConfirmTile(businessId: businessId),
+                        const Divider(height: 1, indent: 56),
+                      ],
 
                       // ── Appearance section ──
                       const SizedBox(height: 28),
@@ -149,10 +166,10 @@ class SettingsScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                     ],
                   ),
-                ),
-              ),
             ),
           ],
+            ),
+          ),
         ),
       ),
     );
@@ -178,6 +195,60 @@ class _SectionHeader extends StatelessWidget {
           letterSpacing: 1.2,
         ),
       ),
+    );
+  }
+}
+
+// ─── Auto-confirm bookings toggle (owners) ──────────────────
+
+class _AutoConfirmTile extends StatefulWidget {
+  const _AutoConfirmTile({required this.businessId});
+  final String businessId;
+
+  @override
+  State<_AutoConfirmTile> createState() => _AutoConfirmTileState();
+}
+
+class _AutoConfirmTileState extends State<_AutoConfirmTile> {
+  final _auth = AuthService();
+  bool? _value;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _auth.getBusiness(widget.businessId).then((b) {
+      if (mounted) setState(() => _value = b.autoConfirmBookings);
+    }).catchError((_) {
+      if (mounted) setState(() => _value = true);
+    });
+  }
+
+  Future<void> _toggle(bool v) async {
+    setState(() {
+      _value = v;
+      _busy = true;
+    });
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _auth.setAutoConfirmBookings(widget.businessId, v);
+    } catch (e) {
+      if (mounted) setState(() => _value = !v);
+      messenger.showSnackBar(SnackBar(content: Text('Could not update: $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsTile(
+      icon: Icons.task_alt_rounded,
+      title: 'Auto-confirm bookings',
+      subtitle: (_value ?? true) ? 'Bookings confirm automatically' : 'You review and confirm each booking',
+      trailing: _value == null
+          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+          : Switch.adaptive(value: _value!, onChanged: _busy ? null : _toggle),
     );
   }
 }

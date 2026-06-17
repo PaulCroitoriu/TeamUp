@@ -19,23 +19,21 @@ _JoinRequestModel _$JoinRequestModelFromJson(Map<String, dynamic> json) =>
           PaymentMethod.card,
       message: json['message'] as String?,
       createdAt: const TimestampConverter().fromJson(json['createdAt']),
-      decidedAt: const TimestampConverter().fromJson(json['decidedAt']),
+      decidedAt: const NullableTimestampConverter().fromJson(json['decidedAt']),
     );
 
-Map<String, dynamic> _$JoinRequestModelToJson(_JoinRequestModel instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'userId': instance.userId,
-      'gameId': instance.gameId,
-      'status': _$JoinRequestStatusEnumMap[instance.status]!,
-      'paymentMethod': _$PaymentMethodEnumMap[instance.paymentMethod]!,
-      'message': instance.message,
-      'createdAt': const TimestampConverter().toJson(instance.createdAt),
-      'decidedAt': _$JsonConverterToJson<dynamic, DateTime>(
-        instance.decidedAt,
-        const TimestampConverter().toJson,
-      ),
-    };
+Map<String, dynamic> _$JoinRequestModelToJson(
+  _JoinRequestModel instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'userId': instance.userId,
+  'gameId': instance.gameId,
+  'status': _$JoinRequestStatusEnumMap[instance.status]!,
+  'paymentMethod': _$PaymentMethodEnumMap[instance.paymentMethod]!,
+  'message': instance.message,
+  'createdAt': const TimestampConverter().toJson(instance.createdAt),
+  'decidedAt': const NullableTimestampConverter().toJson(instance.decidedAt),
+};
 
 const _$JoinRequestStatusEnumMap = {
   JoinRequestStatus.pending: 'pending',
@@ -49,8 +47,3 @@ const _$PaymentMethodEnumMap = {
   PaymentMethod.card: 'card',
   PaymentMethod.transfer: 'transfer',
 };
-
-Json? _$JsonConverterToJson<Json, Value>(
-  Value? value,
-  Json? Function(Value value) toJson,
-) => value == null ? null : toJson(value);

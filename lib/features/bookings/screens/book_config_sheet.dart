@@ -195,13 +195,15 @@ class _BookConfigSheetState extends State<BookConfigSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (mobile)
-              Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 2),
-                width: 42,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: TUColors.line2,
-                  borderRadius: BorderRadius.circular(TUColors.rPill),
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 2),
+                  width: 42,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: TUColors.line2,
+                    borderRadius: BorderRadius.circular(TUColors.rPill),
+                  ),
                 ),
               ),
             if (_done)

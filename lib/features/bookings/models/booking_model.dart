@@ -55,14 +55,14 @@ abstract class BookingModel with _$BookingModel {
 
     /// Set when the booking flips to confirmed (either by payment or by
     /// the venue owner manually accepting).
-    @TimestampConverter() DateTime? confirmedAt,
+    @NullableTimestampConverter() DateTime? confirmedAt,
 
     /// Set when payment lands. May be null even on confirmed bookings if
     /// the owner accepted without payment.
-    @TimestampConverter() DateTime? paidAt,
+    @NullableTimestampConverter() DateTime? paidAt,
 
     /// Set when the booking is cancelled.
-    @TimestampConverter() DateTime? cancelledAt,
+    @NullableTimestampConverter() DateTime? cancelledAt,
 
     @TimestampConverter() required DateTime createdAt,
   }) = _BookingModel;

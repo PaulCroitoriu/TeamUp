@@ -5,131 +5,100 @@ import 'package:logger/logger.dart';
 import 'package:teamup/core/enums/game_status.dart';
 import 'package:teamup/core/enums/join_request_status.dart';
 import 'package:teamup/core/theme/design_tokens.dart';
-import 'package:teamup/core/theme/sport_tile.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
 import 'package:teamup/features/auth/data/auth_service.dart';
 import 'package:teamup/features/auth/models/user_model.dart';
 import 'package:teamup/features/auth/screens/player_profile_screen.dart';
-import 'package:teamup/features/bookings/screens/booking_detail_screen.dart';
 import 'package:teamup/features/games/data/game_service.dart';
 import 'package:teamup/features/games/models/game_model.dart';
 import 'package:teamup/features/games/models/join_request_model.dart';
-import 'package:teamup/features/messaging/screens/game_chat_screen.dart';
 import 'package:teamup/features/venues/data/venue_service.dart';
 import 'package:teamup/shared/widgets/adaptive_sheet.dart';
 
 final _log = Logger();
 
-const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-String _t(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
-class GameDetailScreen extends StatelessWidget {
-  const GameDetailScreen({super.key, required this.gameId});
+/// The open-game / team layer for a slot, embedded inside the unified booking
+/// detail page when the booking has a game. Renders status, the join/request
+/// action (non-members), host edit, the roster, leave, and join requests — the
+/// reservation info and chat are provided by the host page.
+class GamePanel extends StatelessWidget {
+  const GamePanel({super.key, required this.gameId});
   final String gameId;
 
   @override
   Widget build(BuildContext context) {
     final service = GameService();
-    final userId = context.select<AuthBloc, String?>((b) => b.state.maybeMap(authenticated: (s) => s.user.uid, orElse: () => null));
-
-    return Scaffold(
-      backgroundColor: TUColors.bg,
-      appBar: AppBar(
-        backgroundColor: TUColors.bg,
-        foregroundColor: TUColors.ink,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Game', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.4, color: TUColors.ink)),
+    // The venue owner manages the booking but isn't a player, so player-only
+    // actions (join / leave) are gated to player accounts.
+    final auth = context.select<AuthBloc, (String?, bool)>(
+      (b) => b.state.maybeMap(
+        authenticated: (s) => (s.user.uid, s.user.role == UserRole.player),
+        orElse: () => (null, false),
       ),
-      body: StreamBuilder<GameModel>(
-        stream: service.streamGame(gameId),
-        builder: (context, snap) {
-          if (snap.hasError) {
-            return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Failed to load: ${snap.error}', textAlign: TextAlign.center)));
-          }
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+    );
+    final userId = auth.$1;
+    final isPlayer = auth.$2;
 
-          final game = snap.data!;
-          final isHost = game.hostId == userId;
-          final isMember = userId != null && game.playerIds.contains(userId);
-          final perPlayer = (game.pricePerHour / 100 / game.capacity).round();
+    return StreamBuilder<GameModel>(
+      stream: service.streamGame(gameId),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return Padding(padding: const EdgeInsets.all(16), child: Text('Failed to load game: ${snap.error}'));
+        }
+        if (!snap.hasData) {
+          return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
+        }
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-            children: [
-              _HeaderCard(game: game, perPlayer: perPlayer),
-              // ── join / request action + your request status (non-members) ──
-              if (!isHost && !isMember && userId != null) ...[
-                const SizedBox(height: 14),
-                _JoinSection(game: game, userId: userId, service: service, perPlayer: perPlayer),
-              ],
+        final game = snap.data!;
+        final isHost = game.hostId == userId;
+        final isMember = userId != null && game.playerIds.contains(userId);
+        final perPlayer = (game.pricePerHour / 100 / game.capacity).round();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _GameStatusCard(game: game, perPlayer: perPlayer),
+            // ── join / request action + your request status (non-members) ──
+            if (isPlayer && !isHost && !isMember && userId != null) ...[
               const SizedBox(height: 14),
-              // ── actions: message the team · manage booking ──
-              Row(
-                children: [
-                  Expanded(
-                    child: _ActionButton(
-                      icon: Icons.chat_bubble_outline_rounded,
-                      label: 'Message team',
-                      onTap: game.bookingId == null
-                          ? null
-                          : () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => GameChatScreen(
-                                  bookingId: game.bookingId!,
-                                  participantIds: game.playerIds,
-                                  userId: userId ?? '',
-                                  title: '${game.sport.label} team',
-                                ),
-                              ),
-                            ),
-                    ),
-                  ),
-                  if (isHost && game.bookingId != null) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _ActionButton(
-                        icon: Icons.tune_rounded,
-                        label: 'Manage booking',
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: game.bookingId!))),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              if (isHost) ...[
-                const SizedBox(height: 12),
-                _EditGameButton(game: game, service: service),
-              ],
-              const SizedBox(height: 20),
-              _RosterCard(game: game, isHost: isHost, service: service),
-              if (isMember && !isHost) ...[
-                const SizedBox(height: 14),
-                _LeaveButton(gameId: game.id, userId: userId, service: service),
-              ],
-              if (isHost && game.requiresApproval) ...[
-                const SizedBox(height: 20),
-                const Text('Join requests', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: TUColors.ink)),
-                const SizedBox(height: 12),
-                _RequestsSection(gameId: gameId, service: service),
-              ],
+              _JoinSection(game: game, userId: userId, service: service, perPlayer: perPlayer),
             ],
-          );
-        },
-      ),
+            if (isHost) ...[
+              const SizedBox(height: 12),
+              _EditGameButton(game: game, service: service),
+            ],
+            const SizedBox(height: 16),
+            _RosterCard(game: game, isHost: isHost, service: service),
+            if (isPlayer && isMember && !isHost) ...[
+              const SizedBox(height: 14),
+              _LeaveButton(gameId: game.id, userId: userId, service: service),
+            ],
+            if (isHost && game.requiresApproval) ...[
+              const SizedBox(height: 20),
+              const Text('Join requests', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: TUColors.ink)),
+              const SizedBox(height: 12),
+              _RequestsSection(gameId: gameId, service: service),
+            ],
+          ],
+        );
+      },
     );
   }
 }
 
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({required this.game, required this.perPlayer});
+/// Compact "Open game" status card for the unified page — the slot's date,
+/// price and pitch are already shown by the booking header, so this focuses on
+/// the game-specific status and the per-player share.
+class _GameStatusCard extends StatelessWidget {
+  const _GameStatusCard({required this.game, required this.perPlayer});
   final GameModel game;
   final int perPlayer;
 
   @override
   Widget build(BuildContext context) {
     final full = game.spotsOpen <= 0 || game.status != GameStatus.open;
-    final start = game.startTime;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -140,10 +109,10 @@ class _HeaderCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(color: game.sport.color, borderRadius: BorderRadius.circular(14)),
-            child: Center(child: SportGlyph(sport: game.sport, size: 28, color: Colors.white)),
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(color: TUColors.brandTint, borderRadius: BorderRadius.circular(13)),
+            child: const Icon(Icons.bolt_rounded, size: 24, color: TUColors.brand700),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -152,7 +121,7 @@ class _HeaderCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(game.sport.label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: TUColors.ink)),
+                    const Text('Open game', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: TUColors.ink)),
                     const SizedBox(width: 8),
                     if (game.status == GameStatus.private)
                       const _Pill(label: 'Private', bg: TUColors.surface2, fg: TUColors.ink2)
@@ -164,7 +133,7 @@ class _HeaderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${_weekdays[start.weekday - 1]} ${start.day} · ${_t(start)}–${_t(game.endTime)}',
+                  game.spotsOpen > 0 ? 'Needs ${game.spotsOpen} more to fill the team' : 'Team complete',
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TUColors.ink2),
                 ),
               ],
@@ -843,7 +812,7 @@ class _EditGameSheetState extends State<_EditGameSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (mobile)
-            Container(margin: const EdgeInsets.only(top: 10, bottom: 2), width: 42, height: 5, decoration: BoxDecoration(color: TUColors.line2, borderRadius: BorderRadius.circular(TUColors.rPill))),
+            Center(child: Container(margin: const EdgeInsets.only(top: 10, bottom: 2), width: 42, height: 5, decoration: BoxDecoration(color: TUColors.line2, borderRadius: BorderRadius.circular(TUColors.rPill)))),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 18, 16, 12),
             child: Row(
@@ -1081,47 +1050,6 @@ class _LeaveButtonState extends State<_LeaveButton> {
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onTap != null;
-    return Material(
-      color: TUColors.surface,
-      borderRadius: BorderRadius.circular(TUColors.rMd),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(TUColors.rMd),
-        child: Opacity(
-          opacity: enabled ? 1 : 0.5,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(TUColors.rMd), border: Border.all(color: TUColors.line)),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 19, color: TUColors.brand700),
-                const SizedBox(width: 9),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: TUColors.ink),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _Pill extends StatelessWidget {
   const _Pill({required this.label, required this.bg, required this.fg});

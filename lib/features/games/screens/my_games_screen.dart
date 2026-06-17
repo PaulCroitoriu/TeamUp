@@ -14,7 +14,10 @@ import 'package:teamup/features/games/data/game_service.dart';
 import 'package:teamup/core/enums/join_request_status.dart';
 import 'package:teamup/features/games/models/game_model.dart';
 import 'package:teamup/features/games/models/join_request_model.dart';
-import 'package:teamup/features/games/screens/game_detail_screen.dart';
+import 'package:teamup/features/bookings/screens/booking_detail_screen.dart';
+import 'package:teamup/core/enums/notification_type.dart';
+import 'package:teamup/features/notifications/data/notification_service.dart';
+import 'package:teamup/features/notifications/models/notification_model.dart';
 import 'package:teamup/shared/widgets/page_header.dart';
 
 class MyGamesScreen extends StatelessWidget {
@@ -58,7 +61,10 @@ class _MyGamesBody extends StatelessWidget {
         backgroundColor: TUColors.bg,
         body: SafeArea(
           bottom: false,
-          child: Column(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const PageHeader(title: 'My Games'),
@@ -114,21 +120,33 @@ class _MyGamesBody extends StatelessWidget {
                                   (rgSnap.data ?? const <GameModel>[])
                                       .map((g) => (g, statusByGame[g.id]!))
                                       .toList();
-                              return BlocBuilder<BookingBloc, BookingState>(
-                                builder: (context, state) {
-                                  return state.maybeMap(
-                                    loading: (_) => const Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                    loaded: (s) => _Tabs(
-                                      bookings: s.bookings,
-                                      games: joined,
-                                      requestGames: requestGames,
-                                      userId: userId,
-                                    ),
-                                    error: (e) =>
-                                        Center(child: Text(e.message)),
-                                    orElse: () => const SizedBox.shrink(),
+                              return StreamBuilder<List<NotificationModel>>(
+                                stream: NotificationService().streamForUser(userId),
+                                builder: (context, notifSnap) {
+                                  // Games the host has unread join requests on —
+                                  // i.e. that need the host to approve/decline.
+                                  final actionGameIds = {
+                                    for (final n in (notifSnap.data ?? const <NotificationModel>[]))
+                                      if (!n.read && n.type == NotificationType.joinRequest && n.gameId != null) n.gameId!,
+                                  };
+                                  return BlocBuilder<BookingBloc, BookingState>(
+                                    builder: (context, state) {
+                                      return state.maybeMap(
+                                        loading: (_) => const Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                        loaded: (s) => _Tabs(
+                                          bookings: s.bookings,
+                                          games: joined,
+                                          requestGames: requestGames,
+                                          userId: userId,
+                                          actionGameIds: actionGameIds,
+                                        ),
+                                        error: (e) =>
+                                            Center(child: Text(e.message)),
+                                        orElse: () => const SizedBox.shrink(),
+                                      );
+                                    },
                                   );
                                 },
                               );
@@ -141,6 +159,8 @@ class _MyGamesBody extends StatelessWidget {
                 ),
               ),
             ],
+              ),
+            ),
           ),
         ),
       ),
@@ -154,11 +174,13 @@ class _Tabs extends StatelessWidget {
     required this.games,
     required this.requestGames,
     required this.userId,
+    required this.actionGameIds,
   });
   final List<BookingModel> bookings;
   final List<GameModel> games;
   final List<(GameModel, JoinRequestStatus)> requestGames;
   final String userId;
+  final Set<String> actionGameIds;
 
   @override
   Widget build(BuildContext context) {
@@ -175,12 +197,18 @@ class _Tabs extends StatelessWidget {
             (b.startTime, BookingCard(booking: b)),
         for (final g in games)
           if (g.status != GameStatus.cancelled && g.endTime.isAfter(now))
-            (g.startTime, _GameCard(game: g, userId: userId)),
+            (g.startTime, _GameCard(game: g, userId: userId, actionNeeded: actionGameIds.contains(g.id))),
         for (final (g, st) in requestGames)
           if (g.status != GameStatus.cancelled && g.endTime.isAfter(now))
             (
               g.startTime,
-              _GameCard(game: g, userId: userId, requestStatus: st),
+              _GameCard(
+                game: g,
+                userId: userId,
+                requestStatus: st,
+                // Player must confirm an approved request.
+                actionNeeded: st == JoinRequestStatus.approved || actionGameIds.contains(g.id),
+              ),
             ),
       ]..sort((a, b) => a.$1.compareTo(b.$1));
       return [for (final e in items) e.$2];
@@ -284,10 +312,14 @@ class _GameCard extends StatelessWidget {
     required this.game,
     required this.userId,
     this.requestStatus,
+    this.actionNeeded = false,
   });
   final GameModel game;
   final String userId;
   final JoinRequestStatus? requestStatus;
+  final bool actionNeeded;
+
+  static const _amber = Color(0xFFC9881A);
 
   static const _months = [
     'Jan',
@@ -320,17 +352,24 @@ class _GameCard extends StatelessWidget {
       color: TUColors.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => GameDetailScreen(gameId: game.id)),
-        ),
+        onTap: game.bookingId == null
+            ? null
+            : () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: game.bookingId!)),
+              ),
         borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
+            color: actionNeeded ? _amber.withAlpha(12) : null,
             border: Border.all(
-              color: isLive ? TUColors.brand : TUColors.line,
-              width: isLive ? 1.5 : 1,
+              color: actionNeeded
+                  ? _amber.withAlpha(170)
+                  : isLive
+                  ? TUColors.brand
+                  : TUColors.line,
+              width: actionNeeded || isLive ? 1.5 : 1,
             ),
           ),
           child: Row(
@@ -394,6 +433,21 @@ class _GameCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (actionNeeded) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: _amber, borderRadius: BorderRadius.circular(999)),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.flag_rounded, size: 12, color: Colors.white),
+                                SizedBox(width: 4),
+                                Text('Action', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
                         if (requestStatus == JoinRequestStatus.pending)
                           const _Pill(
                             label: 'Requested',

@@ -52,6 +52,10 @@ class TUColors {
   static const rLg = 22.0;
   static const rXl = 28.0;
   static const rPill = 999.0;
+
+  // Shared max content width for top-level pages, so every page's header and
+  // body align to the same column on desktop instead of each picking its own.
+  static const pageMaxWidth = 1120.0;
 }
 
 /// Per-sport accent colour, matching the design's sport palette.
@@ -84,10 +88,6 @@ extension SportPalette on Sport {
   LinearGradient get tileGradient {
     final c = color;
     final dark = Color.lerp(c, const Color(0xFF06170E), 0.28)!;
-    return LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [c, dark],
-    );
+    return LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c, dark]);
   }
 }

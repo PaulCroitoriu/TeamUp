@@ -6,14 +6,45 @@ import 'package:teamup/features/auth/bloc/auth_bloc.dart';
 import 'package:teamup/features/notifications/data/notification_service.dart';
 import 'package:teamup/features/notifications/screens/notifications_screen.dart';
 
+/// Boxed back button used as a [PageHeader] leading on detail pages, so the
+/// back affordance looks identical everywhere. Pops the route by default.
+class HeaderBackButton extends StatelessWidget {
+  const HeaderBackButton({super.key, this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: TUColors.surface2,
+      borderRadius: BorderRadius.circular(TUColors.rMd),
+      child: InkWell(
+        onTap: onTap ?? () => Navigator.of(context).maybePop(),
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        child: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(TUColors.rMd),
+            border: Border.all(color: TUColors.line),
+          ),
+          child: const Icon(Icons.arrow_back_rounded, size: 22, color: TUColors.ink2),
+        ),
+      ),
+    );
+  }
+}
+
 /// Shared page header from the TeamUp redesign — a large title, an optional
 /// lede subtitle, and the notification bell. Reused across every top-level page
 /// so the header looks and behaves identically everywhere.
 class PageHeader extends StatelessWidget {
-  const PageHeader({super.key, required this.title, this.subtitle, this.trailing});
+  const PageHeader({super.key, required this.title, this.subtitle, this.trailing, this.leading});
 
   final String title;
   final String? subtitle;
+
+  /// Optional widget before the title (e.g. a back button on a detail page).
+  final Widget? leading;
 
   /// Defaults to the [NotificationBell]. Pass a widget to override (e.g. an
   /// add button) or [SizedBox.shrink] to hide it.
@@ -21,13 +52,17 @@ class PageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Larger, more confident header on desktop; compact on mobile.
+    // Larger, more confident header on desktop; compact on mobile. Acts as the
+    // page's top bar: it owns the status-bar inset (0 when already inside a
+    // SafeArea) plus comfortable top spacing, so screens don't add their own.
     final wide = MediaQuery.sizeOf(context).width >= 600;
+    final topInset = MediaQuery.paddingOf(context).top;
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, wide ? 22 : 16, 20, wide ? 14 : 8),
+      padding: EdgeInsets.fromLTRB(20, topInset + (wide ? 28 : 18), 20, wide ? 26 : 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 12)],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

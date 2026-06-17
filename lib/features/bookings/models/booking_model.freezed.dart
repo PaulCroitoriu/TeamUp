@@ -31,10 +31,10 @@ mixin _$BookingModel {
 /// uses this to roll the series forward and collect payment.
  bool get recurring; String? get notes;/// Set when the booking flips to confirmed (either by payment or by
 /// the venue owner manually accepting).
-@TimestampConverter() DateTime? get confirmedAt;/// Set when payment lands. May be null even on confirmed bookings if
+@NullableTimestampConverter() DateTime? get confirmedAt;/// Set when payment lands. May be null even on confirmed bookings if
 /// the owner accepted without payment.
-@TimestampConverter() DateTime? get paidAt;/// Set when the booking is cancelled.
-@TimestampConverter() DateTime? get cancelledAt;@TimestampConverter() DateTime get createdAt;
+@NullableTimestampConverter() DateTime? get paidAt;/// Set when the booking is cancelled.
+@NullableTimestampConverter() DateTime? get cancelledAt;@TimestampConverter() DateTime get createdAt;
 /// Create a copy of BookingModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -67,7 +67,7 @@ abstract mixin class $BookingModelCopyWith<$Res>  {
   factory $BookingModelCopyWith(BookingModel value, $Res Function(BookingModel) _then) = _$BookingModelCopyWithImpl;
 @useResult
 $Res call({
- String id, String pitchId, String venueId, String businessId, String bookerId, String? gameId,@TimestampConverter() DateTime startTime,@TimestampConverter() DateTime endTime, int pricePaid, String currency, BookingStatus status, PaymentMethod paymentMethod, String? customerName, String? customerPhone, String? customerEmail, String? customerUserId, String? recurrenceId, bool recurring, String? notes,@TimestampConverter() DateTime? confirmedAt,@TimestampConverter() DateTime? paidAt,@TimestampConverter() DateTime? cancelledAt,@TimestampConverter() DateTime createdAt
+ String id, String pitchId, String venueId, String businessId, String bookerId, String? gameId,@TimestampConverter() DateTime startTime,@TimestampConverter() DateTime endTime, int pricePaid, String currency, BookingStatus status, PaymentMethod paymentMethod, String? customerName, String? customerPhone, String? customerEmail, String? customerUserId, String? recurrenceId, bool recurring, String? notes,@NullableTimestampConverter() DateTime? confirmedAt,@NullableTimestampConverter() DateTime? paidAt,@NullableTimestampConverter() DateTime? cancelledAt,@TimestampConverter() DateTime createdAt
 });
 
 
@@ -194,7 +194,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String pitchId,  String venueId,  String businessId,  String bookerId,  String? gameId, @TimestampConverter()  DateTime startTime, @TimestampConverter()  DateTime endTime,  int pricePaid,  String currency,  BookingStatus status,  PaymentMethod paymentMethod,  String? customerName,  String? customerPhone,  String? customerEmail,  String? customerUserId,  String? recurrenceId,  bool recurring,  String? notes, @TimestampConverter()  DateTime? confirmedAt, @TimestampConverter()  DateTime? paidAt, @TimestampConverter()  DateTime? cancelledAt, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String pitchId,  String venueId,  String businessId,  String bookerId,  String? gameId, @TimestampConverter()  DateTime startTime, @TimestampConverter()  DateTime endTime,  int pricePaid,  String currency,  BookingStatus status,  PaymentMethod paymentMethod,  String? customerName,  String? customerPhone,  String? customerEmail,  String? customerUserId,  String? recurrenceId,  bool recurring,  String? notes, @NullableTimestampConverter()  DateTime? confirmedAt, @NullableTimestampConverter()  DateTime? paidAt, @NullableTimestampConverter()  DateTime? cancelledAt, @TimestampConverter()  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BookingModel() when $default != null:
 return $default(_that.id,_that.pitchId,_that.venueId,_that.businessId,_that.bookerId,_that.gameId,_that.startTime,_that.endTime,_that.pricePaid,_that.currency,_that.status,_that.paymentMethod,_that.customerName,_that.customerPhone,_that.customerEmail,_that.customerUserId,_that.recurrenceId,_that.recurring,_that.notes,_that.confirmedAt,_that.paidAt,_that.cancelledAt,_that.createdAt);case _:
@@ -215,7 +215,7 @@ return $default(_that.id,_that.pitchId,_that.venueId,_that.businessId,_that.book
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String pitchId,  String venueId,  String businessId,  String bookerId,  String? gameId, @TimestampConverter()  DateTime startTime, @TimestampConverter()  DateTime endTime,  int pricePaid,  String currency,  BookingStatus status,  PaymentMethod paymentMethod,  String? customerName,  String? customerPhone,  String? customerEmail,  String? customerUserId,  String? recurrenceId,  bool recurring,  String? notes, @TimestampConverter()  DateTime? confirmedAt, @TimestampConverter()  DateTime? paidAt, @TimestampConverter()  DateTime? cancelledAt, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String pitchId,  String venueId,  String businessId,  String bookerId,  String? gameId, @TimestampConverter()  DateTime startTime, @TimestampConverter()  DateTime endTime,  int pricePaid,  String currency,  BookingStatus status,  PaymentMethod paymentMethod,  String? customerName,  String? customerPhone,  String? customerEmail,  String? customerUserId,  String? recurrenceId,  bool recurring,  String? notes, @NullableTimestampConverter()  DateTime? confirmedAt, @NullableTimestampConverter()  DateTime? paidAt, @NullableTimestampConverter()  DateTime? cancelledAt, @TimestampConverter()  DateTime createdAt)  $default,) {final _that = this;
 switch (_that) {
 case _BookingModel():
 return $default(_that.id,_that.pitchId,_that.venueId,_that.businessId,_that.bookerId,_that.gameId,_that.startTime,_that.endTime,_that.pricePaid,_that.currency,_that.status,_that.paymentMethod,_that.customerName,_that.customerPhone,_that.customerEmail,_that.customerUserId,_that.recurrenceId,_that.recurring,_that.notes,_that.confirmedAt,_that.paidAt,_that.cancelledAt,_that.createdAt);case _:
@@ -235,7 +235,7 @@ return $default(_that.id,_that.pitchId,_that.venueId,_that.businessId,_that.book
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String pitchId,  String venueId,  String businessId,  String bookerId,  String? gameId, @TimestampConverter()  DateTime startTime, @TimestampConverter()  DateTime endTime,  int pricePaid,  String currency,  BookingStatus status,  PaymentMethod paymentMethod,  String? customerName,  String? customerPhone,  String? customerEmail,  String? customerUserId,  String? recurrenceId,  bool recurring,  String? notes, @TimestampConverter()  DateTime? confirmedAt, @TimestampConverter()  DateTime? paidAt, @TimestampConverter()  DateTime? cancelledAt, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String pitchId,  String venueId,  String businessId,  String bookerId,  String? gameId, @TimestampConverter()  DateTime startTime, @TimestampConverter()  DateTime endTime,  int pricePaid,  String currency,  BookingStatus status,  PaymentMethod paymentMethod,  String? customerName,  String? customerPhone,  String? customerEmail,  String? customerUserId,  String? recurrenceId,  bool recurring,  String? notes, @NullableTimestampConverter()  DateTime? confirmedAt, @NullableTimestampConverter()  DateTime? paidAt, @NullableTimestampConverter()  DateTime? cancelledAt, @TimestampConverter()  DateTime createdAt)?  $default,) {final _that = this;
 switch (_that) {
 case _BookingModel() when $default != null:
 return $default(_that.id,_that.pitchId,_that.venueId,_that.businessId,_that.bookerId,_that.gameId,_that.startTime,_that.endTime,_that.pricePaid,_that.currency,_that.status,_that.paymentMethod,_that.customerName,_that.customerPhone,_that.customerEmail,_that.customerUserId,_that.recurrenceId,_that.recurring,_that.notes,_that.confirmedAt,_that.paidAt,_that.cancelledAt,_that.createdAt);case _:
@@ -250,7 +250,7 @@ return $default(_that.id,_that.pitchId,_that.venueId,_that.businessId,_that.book
 @JsonSerializable()
 
 class _BookingModel implements BookingModel {
-  const _BookingModel({required this.id, required this.pitchId, required this.venueId, required this.businessId, required this.bookerId, this.gameId, @TimestampConverter() required this.startTime, @TimestampConverter() required this.endTime, required this.pricePaid, this.currency = 'RON', this.status = BookingStatus.pending, this.paymentMethod = PaymentMethod.card, this.customerName, this.customerPhone, this.customerEmail, this.customerUserId, this.recurrenceId, this.recurring = false, this.notes, @TimestampConverter() this.confirmedAt, @TimestampConverter() this.paidAt, @TimestampConverter() this.cancelledAt, @TimestampConverter() required this.createdAt});
+  const _BookingModel({required this.id, required this.pitchId, required this.venueId, required this.businessId, required this.bookerId, this.gameId, @TimestampConverter() required this.startTime, @TimestampConverter() required this.endTime, required this.pricePaid, this.currency = 'RON', this.status = BookingStatus.pending, this.paymentMethod = PaymentMethod.card, this.customerName, this.customerPhone, this.customerEmail, this.customerUserId, this.recurrenceId, this.recurring = false, this.notes, @NullableTimestampConverter() this.confirmedAt, @NullableTimestampConverter() this.paidAt, @NullableTimestampConverter() this.cancelledAt, @TimestampConverter() required this.createdAt});
   factory _BookingModel.fromJson(Map<String, dynamic> json) => _$BookingModelFromJson(json);
 
 @override final  String id;
@@ -288,12 +288,12 @@ class _BookingModel implements BookingModel {
 @override final  String? notes;
 /// Set when the booking flips to confirmed (either by payment or by
 /// the venue owner manually accepting).
-@override@TimestampConverter() final  DateTime? confirmedAt;
+@override@NullableTimestampConverter() final  DateTime? confirmedAt;
 /// Set when payment lands. May be null even on confirmed bookings if
 /// the owner accepted without payment.
-@override@TimestampConverter() final  DateTime? paidAt;
+@override@NullableTimestampConverter() final  DateTime? paidAt;
 /// Set when the booking is cancelled.
-@override@TimestampConverter() final  DateTime? cancelledAt;
+@override@NullableTimestampConverter() final  DateTime? cancelledAt;
 @override@TimestampConverter() final  DateTime createdAt;
 
 /// Create a copy of BookingModel
@@ -329,7 +329,7 @@ abstract mixin class _$BookingModelCopyWith<$Res> implements $BookingModelCopyWi
   factory _$BookingModelCopyWith(_BookingModel value, $Res Function(_BookingModel) _then) = __$BookingModelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String pitchId, String venueId, String businessId, String bookerId, String? gameId,@TimestampConverter() DateTime startTime,@TimestampConverter() DateTime endTime, int pricePaid, String currency, BookingStatus status, PaymentMethod paymentMethod, String? customerName, String? customerPhone, String? customerEmail, String? customerUserId, String? recurrenceId, bool recurring, String? notes,@TimestampConverter() DateTime? confirmedAt,@TimestampConverter() DateTime? paidAt,@TimestampConverter() DateTime? cancelledAt,@TimestampConverter() DateTime createdAt
+ String id, String pitchId, String venueId, String businessId, String bookerId, String? gameId,@TimestampConverter() DateTime startTime,@TimestampConverter() DateTime endTime, int pricePaid, String currency, BookingStatus status, PaymentMethod paymentMethod, String? customerName, String? customerPhone, String? customerEmail, String? customerUserId, String? recurrenceId, bool recurring, String? notes,@NullableTimestampConverter() DateTime? confirmedAt,@NullableTimestampConverter() DateTime? paidAt,@NullableTimestampConverter() DateTime? cancelledAt,@TimestampConverter() DateTime createdAt
 });
 
 

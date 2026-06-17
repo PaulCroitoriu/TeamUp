@@ -11,19 +11,24 @@ class ConversationsScreen extends StatelessWidget {
       backgroundColor: TUColors.bg,
       body: SafeArea(
         bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const PageHeader(title: 'Messages'),
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'Your conversations',
-                  style: TextStyle(color: TUColors.ink3, fontWeight: FontWeight.w500),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const PageHeader(title: 'Messages'),
+                const Expanded(
+                  child: Center(
+                    child: Text(
+                      'Your conversations',
+                      style: TextStyle(color: TUColors.ink3, fontWeight: FontWeight.w500),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

@@ -20,7 +20,7 @@ abstract class JoinRequestModel with _$JoinRequestModel {
     @Default(PaymentMethod.card) PaymentMethod paymentMethod,
     String? message,
     @TimestampConverter() required DateTime createdAt,
-    @TimestampConverter() DateTime? decidedAt,
+    @NullableTimestampConverter() DateTime? decidedAt,
   }) = _JoinRequestModel;
 
   factory JoinRequestModel.fromJson(Map<String, dynamic> json) => _$JoinRequestModelFromJson(json);

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:teamup/core/enums/sport.dart';
 import 'package:teamup/core/theme/design_tokens.dart';
 import 'package:teamup/core/theme/sport_tile.dart';
+import 'package:teamup/features/bookings/screens/booking_detail_screen.dart';
 import 'package:teamup/features/games/data/game_service.dart';
 import 'package:teamup/features/games/models/game_model.dart';
-import 'package:teamup/features/games/screens/game_detail_screen.dart';
 import 'package:teamup/features/venues/data/venue_service.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
@@ -93,9 +93,11 @@ class _OpenGamesViewState extends State<OpenGamesView> {
                                 game: g,
                                 venue: venuesById[g.venueId],
                                 pitch: pitchesById[g.pitchId],
-                                onTap: () => Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => GameDetailScreen(gameId: g.id)),
-                                ),
+                                onTap: g.bookingId == null
+                                    ? () {}
+                                    : () => Navigator.of(context).push(
+                                        MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: g.bookingId!)),
+                                      ),
                               ),
                             ),
                         ],

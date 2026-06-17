@@ -14,6 +14,7 @@ _BusinessModel _$BusinessModelFromJson(Map<String, dynamic> json) =>
       phone: json['phone'] as String?,
       address: json['address'] as String?,
       logoUrl: json['logoUrl'] as String?,
+      autoConfirmBookings: json['autoConfirmBookings'] as bool? ?? true,
       createdAt: const TimestampConverter().fromJson(json['createdAt']),
     );
 
@@ -25,5 +26,6 @@ Map<String, dynamic> _$BusinessModelToJson(_BusinessModel instance) =>
       'phone': instance.phone,
       'address': instance.address,
       'logoUrl': instance.logoUrl,
+      'autoConfirmBookings': instance.autoConfirmBookings,
       'createdAt': const TimestampConverter().toJson(instance.createdAt),
     };

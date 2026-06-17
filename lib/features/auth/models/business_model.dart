@@ -14,6 +14,10 @@ abstract class BusinessModel with _$BusinessModel {
     String? phone,
     String? address,
     String? logoUrl,
+
+    /// When true (default), player bookings are confirmed on creation; when
+    /// false, they land as `pending` for the owner to review and confirm.
+    @Default(true) bool autoConfirmBookings,
     @TimestampConverter() required DateTime createdAt,
   }) = _BusinessModel;
 

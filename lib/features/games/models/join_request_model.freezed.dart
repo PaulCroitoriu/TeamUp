@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$JoinRequestModel {
 
- String get id; String get userId; String get gameId; JoinRequestStatus get status; PaymentMethod get paymentMethod; String? get message;@TimestampConverter() DateTime get createdAt;@TimestampConverter() DateTime? get decidedAt;
+ String get id; String get userId; String get gameId; JoinRequestStatus get status; PaymentMethod get paymentMethod; String? get message;@TimestampConverter() DateTime get createdAt;@NullableTimestampConverter() DateTime? get decidedAt;
 /// Create a copy of JoinRequestModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,7 +48,7 @@ abstract mixin class $JoinRequestModelCopyWith<$Res>  {
   factory $JoinRequestModelCopyWith(JoinRequestModel value, $Res Function(JoinRequestModel) _then) = _$JoinRequestModelCopyWithImpl;
 @useResult
 $Res call({
- String id, String userId, String gameId, JoinRequestStatus status, PaymentMethod paymentMethod, String? message,@TimestampConverter() DateTime createdAt,@TimestampConverter() DateTime? decidedAt
+ String id, String userId, String gameId, JoinRequestStatus status, PaymentMethod paymentMethod, String? message,@TimestampConverter() DateTime createdAt,@NullableTimestampConverter() DateTime? decidedAt
 });
 
 
@@ -160,7 +160,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String userId,  String gameId,  JoinRequestStatus status,  PaymentMethod paymentMethod,  String? message, @TimestampConverter()  DateTime createdAt, @TimestampConverter()  DateTime? decidedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String userId,  String gameId,  JoinRequestStatus status,  PaymentMethod paymentMethod,  String? message, @TimestampConverter()  DateTime createdAt, @NullableTimestampConverter()  DateTime? decidedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _JoinRequestModel() when $default != null:
 return $default(_that.id,_that.userId,_that.gameId,_that.status,_that.paymentMethod,_that.message,_that.createdAt,_that.decidedAt);case _:
@@ -181,7 +181,7 @@ return $default(_that.id,_that.userId,_that.gameId,_that.status,_that.paymentMet
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String userId,  String gameId,  JoinRequestStatus status,  PaymentMethod paymentMethod,  String? message, @TimestampConverter()  DateTime createdAt, @TimestampConverter()  DateTime? decidedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String userId,  String gameId,  JoinRequestStatus status,  PaymentMethod paymentMethod,  String? message, @TimestampConverter()  DateTime createdAt, @NullableTimestampConverter()  DateTime? decidedAt)  $default,) {final _that = this;
 switch (_that) {
 case _JoinRequestModel():
 return $default(_that.id,_that.userId,_that.gameId,_that.status,_that.paymentMethod,_that.message,_that.createdAt,_that.decidedAt);case _:
@@ -201,7 +201,7 @@ return $default(_that.id,_that.userId,_that.gameId,_that.status,_that.paymentMet
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String userId,  String gameId,  JoinRequestStatus status,  PaymentMethod paymentMethod,  String? message, @TimestampConverter()  DateTime createdAt, @TimestampConverter()  DateTime? decidedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String userId,  String gameId,  JoinRequestStatus status,  PaymentMethod paymentMethod,  String? message, @TimestampConverter()  DateTime createdAt, @NullableTimestampConverter()  DateTime? decidedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _JoinRequestModel() when $default != null:
 return $default(_that.id,_that.userId,_that.gameId,_that.status,_that.paymentMethod,_that.message,_that.createdAt,_that.decidedAt);case _:
@@ -216,7 +216,7 @@ return $default(_that.id,_that.userId,_that.gameId,_that.status,_that.paymentMet
 @JsonSerializable()
 
 class _JoinRequestModel implements JoinRequestModel {
-  const _JoinRequestModel({required this.id, required this.userId, required this.gameId, this.status = JoinRequestStatus.pending, this.paymentMethod = PaymentMethod.card, this.message, @TimestampConverter() required this.createdAt, @TimestampConverter() this.decidedAt});
+  const _JoinRequestModel({required this.id, required this.userId, required this.gameId, this.status = JoinRequestStatus.pending, this.paymentMethod = PaymentMethod.card, this.message, @TimestampConverter() required this.createdAt, @NullableTimestampConverter() this.decidedAt});
   factory _JoinRequestModel.fromJson(Map<String, dynamic> json) => _$JoinRequestModelFromJson(json);
 
 @override final  String id;
@@ -226,7 +226,7 @@ class _JoinRequestModel implements JoinRequestModel {
 @override@JsonKey() final  PaymentMethod paymentMethod;
 @override final  String? message;
 @override@TimestampConverter() final  DateTime createdAt;
-@override@TimestampConverter() final  DateTime? decidedAt;
+@override@NullableTimestampConverter() final  DateTime? decidedAt;
 
 /// Create a copy of JoinRequestModel
 /// with the given fields replaced by the non-null parameter values.
@@ -261,7 +261,7 @@ abstract mixin class _$JoinRequestModelCopyWith<$Res> implements $JoinRequestMod
   factory _$JoinRequestModelCopyWith(_JoinRequestModel value, $Res Function(_JoinRequestModel) _then) = __$JoinRequestModelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String userId, String gameId, JoinRequestStatus status, PaymentMethod paymentMethod, String? message,@TimestampConverter() DateTime createdAt,@TimestampConverter() DateTime? decidedAt
+ String id, String userId, String gameId, JoinRequestStatus status, PaymentMethod paymentMethod, String? message,@TimestampConverter() DateTime createdAt,@NullableTimestampConverter() DateTime? decidedAt
 });
 
 

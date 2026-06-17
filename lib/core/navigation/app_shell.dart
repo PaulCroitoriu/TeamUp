@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:teamup/core/enums/sport.dart';
 import 'package:teamup/core/theme/design_tokens.dart';
 import 'package:teamup/core/theme/sport_tile.dart';
+import 'package:teamup/core/enums/notification_type.dart';
 import 'package:teamup/features/auth/models/user_model.dart';
+import 'package:teamup/features/notifications/data/notification_service.dart';
 import 'package:teamup/features/notifications/data/push_service.dart';
+import 'package:teamup/features/notifications/models/notification_model.dart';
 import 'package:teamup/features/notifications/widgets/notification_toast_listener.dart';
 import 'package:teamup/features/games/screens/explore_screen.dart';
 import 'package:teamup/features/games/screens/my_games_screen.dart';
@@ -79,7 +82,7 @@ class _AppShellState extends State<AppShell> {
       : const [
           _Destination(Icons.explore_outlined, Icons.explore_rounded, 'Explore'),
           _Destination(Icons.sports_soccer_outlined, Icons.sports_soccer_rounded, 'My Games'),
-          _Destination(Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Messages'),
+          _Destination(Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Messages', isMessages: true),
           _Destination(Icons.settings_outlined, Icons.settings_rounded, 'Settings'),
         ];
 
@@ -107,6 +110,7 @@ class _AppShellState extends State<AppShell> {
               expanded: _sidebarExpanded,
               selectedIndex: _index,
               destinations: destinations,
+              userId: widget.user.uid,
               onSelected: _select,
               onToggle: () => setState(() => _sidebarExpanded = !_sidebarExpanded),
             ),
@@ -139,8 +143,12 @@ class _AppShellState extends State<AppShell> {
         destinations: [
           for (final d in destinations)
             NavigationDestination(
-              icon: Icon(d.icon),
-              selectedIcon: Icon(d.selectedIcon, color: colors.primary),
+              icon: d.isMessages
+                  ? _UnreadMessagesDot(userId: widget.user.uid, child: Icon(d.icon))
+                  : Icon(d.icon),
+              selectedIcon: d.isMessages
+                  ? _UnreadMessagesDot(userId: widget.user.uid, child: Icon(d.selectedIcon, color: colors.primary))
+                  : Icon(d.selectedIcon, color: colors.primary),
               label: d.label,
             ),
         ],
@@ -170,20 +178,61 @@ class _TabNavigator extends StatelessWidget {
 }
 
 class _Destination {
-  const _Destination(this.icon, this.selectedIcon, this.label);
+  const _Destination(this.icon, this.selectedIcon, this.label, {this.isMessages = false});
   final IconData icon;
   final IconData selectedIcon;
   final String label;
+  final bool isMessages;
+}
+
+/// Overlays a small red dot on [child] when the user has unread chat messages,
+/// used to badge the Messages nav item.
+class _UnreadMessagesDot extends StatelessWidget {
+  const _UnreadMessagesDot({required this.userId, required this.child});
+  final String userId;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<NotificationModel>>(
+      stream: NotificationService().streamForUser(userId),
+      builder: (context, snap) {
+        final unread = (snap.data ?? const <NotificationModel>[])
+            .any((n) => !n.read && n.type == NotificationType.newMessage);
+        if (!unread) return child;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            child,
+            Positioned(
+              top: -3,
+              right: -4,
+              child: Container(
+                width: 11,
+                height: 11,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5484D),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 /// Dark pitch-green gradient sidebar from the TeamUp redesign — brand logo
 /// tile, lime-accented selection with a left accent bar, and a Collapse row.
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({required this.expanded, required this.selectedIndex, required this.destinations, required this.onSelected, required this.onToggle});
+  const _Sidebar({required this.expanded, required this.selectedIndex, required this.destinations, required this.userId, required this.onSelected, required this.onToggle});
 
   final bool expanded;
   final int selectedIndex;
   final List<_Destination> destinations;
+  final String userId;
   final ValueChanged<int> onSelected;
   final VoidCallback onToggle;
 
@@ -257,6 +306,7 @@ class _Sidebar extends StatelessWidget {
                           destination: destinations[i],
                           selected: selectedIndex == i,
                           expanded: expanded,
+                          userId: userId,
                           onTap: () => onSelected(i),
                         ),
                       ),
@@ -275,11 +325,12 @@ class _Sidebar extends StatelessWidget {
 }
 
 class _SidebarItem extends StatelessWidget {
-  const _SidebarItem({required this.destination, required this.selected, required this.expanded, required this.onTap});
+  const _SidebarItem({required this.destination, required this.selected, required this.expanded, required this.userId, required this.onTap});
 
   final _Destination destination;
   final bool selected;
   final bool expanded;
+  final String userId;
   final VoidCallback onTap;
 
   @override
@@ -297,7 +348,12 @@ class _SidebarItem extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(selected ? destination.selectedIcon : destination.icon, color: fg, size: 21),
+          destination.isMessages
+              ? _UnreadMessagesDot(
+                  userId: userId,
+                  child: Icon(selected ? destination.selectedIcon : destination.icon, color: fg, size: 21),
+                )
+              : Icon(selected ? destination.selectedIcon : destination.icon, color: fg, size: 21),
           if (expanded) ...[
             const SizedBox(width: 13),
             Expanded(
