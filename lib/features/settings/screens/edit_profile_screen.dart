@@ -14,6 +14,7 @@ import 'package:teamup/core/theme/sport_tile.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
 import 'package:teamup/features/auth/data/auth_service.dart';
 import 'package:teamup/features/auth/models/user_model.dart';
+import 'package:teamup/shared/widgets/page_header.dart';
 
 final _log = Logger();
 
@@ -120,88 +121,102 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final isWide = MediaQuery.sizeOf(context).width >= 600;
     return Scaffold(
       backgroundColor: TUColors.bg,
-      appBar: AppBar(
-        backgroundColor: TUColors.bg,
-        foregroundColor: TUColors.ink,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Edit profile', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-      ),
-      body: Form(
-        key: _formKey,
+      body: SafeArea(
+        bottom: false,
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: ListView(
-              padding: EdgeInsets.symmetric(horizontal: isWide ? 32 : 20, vertical: 24),
+            constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Center(child: _PhotoPicker(photoUrl: _photoUrl, newPhoto: _newPhoto, initials: widget.user.initials, onTap: _pickPhoto)),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(child: _Field(label: 'First name', controller: _firstName, validator: _required)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _Field(label: 'Last name', controller: _lastName, validator: _required)),
-                  ],
+                const PageHeader(
+                  leading: HeaderBackButton(),
+                  title: 'Edit profile',
+                  trailing: SizedBox.shrink(),
                 ),
-                const SizedBox(height: 16),
-                _Field(label: 'Phone', controller: _phone, keyboardType: TextInputType.phone),
-                const SizedBox(height: 16),
-                _Field(label: 'Bio', controller: _bio, maxLines: 3, hint: 'A line about how you play'),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _GenderField(value: _gender, onChanged: (g) => setState(() => _gender = g))),
-                    const SizedBox(width: 12),
-                    Expanded(child: _BirthDateField(value: _birthDate, onTap: _pickBirthDate)),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const _Label('Sports & level'),
-                const SizedBox(height: 4),
-                const Text('Add the sports you play and your level in each.', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
-                const SizedBox(height: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    color: TUColors.surface,
-                    borderRadius: BorderRadius.circular(TUColors.rLg),
-                    border: Border.all(color: TUColors.line),
-                  ),
-                  child: Column(
-                    children: [
-                      for (var i = 0; i < Sport.values.length; i++) ...[
-                        if (i > 0) const Divider(height: 1, thickness: 1, color: TUColors.line),
-                        _SportLevelEditRow(
-                          sport: Sport.values[i],
-                          level: _levels[Sport.values[i]],
-                          onToggle: () => setState(() {
-                            final s = Sport.values[i];
-                            if (_levels.containsKey(s)) {
-                              _levels.remove(s);
-                            } else {
-                              _levels[s] = SkillLevel.beginner;
-                            }
-                          }),
-                          onLevelChanged: (lvl) => setState(() => _levels[Sport.values[i]] = lvl),
+                Expanded(
+                  child: Form(
+                    key: _formKey,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        child: ListView(
+                          padding: EdgeInsets.symmetric(horizontal: isWide ? 32 : 20, vertical: 12).copyWith(bottom: 32),
+                          children: [
+                            Center(child: _PhotoPicker(photoUrl: _photoUrl, newPhoto: _newPhoto, initials: widget.user.initials, onTap: _pickPhoto)),
+                            const SizedBox(height: 24),
+                            Row(
+                              children: [
+                                Expanded(child: _Field(label: 'First name', controller: _firstName, validator: _required)),
+                                const SizedBox(width: 12),
+                                Expanded(child: _Field(label: 'Last name', controller: _lastName, validator: _required)),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            _Field(label: 'Phone', controller: _phone, keyboardType: TextInputType.phone),
+                            const SizedBox(height: 16),
+                            _Field(label: 'Bio', controller: _bio, maxLines: 3, hint: 'A line about how you play'),
+                            const SizedBox(height: 16),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: _GenderField(value: _gender, onChanged: (g) => setState(() => _gender = g))),
+                                const SizedBox(width: 12),
+                                Expanded(child: _BirthDateField(value: _birthDate, onTap: _pickBirthDate)),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            const _Label('Sports & level'),
+                            const SizedBox(height: 4),
+                            const Text('Add the sports you play and your level in each.', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: TUColors.ink3)),
+                            const SizedBox(height: 12),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: TUColors.surface,
+                                borderRadius: BorderRadius.circular(TUColors.rLg),
+                                border: Border.all(color: TUColors.line),
+                                boxShadow: TUColors.shSm,
+                              ),
+                              child: Column(
+                                children: [
+                                  for (var i = 0; i < Sport.values.length; i++) ...[
+                                    if (i > 0) const Divider(height: 1, thickness: 1, color: TUColors.line),
+                                    _SportLevelEditRow(
+                                      sport: Sport.values[i],
+                                      level: _levels[Sport.values[i]],
+                                      onToggle: () => setState(() {
+                                        final s = Sport.values[i];
+                                        if (_levels.containsKey(s)) {
+                                          _levels.remove(s);
+                                        } else {
+                                          _levels[s] = SkillLevel.beginner;
+                                        }
+                                      }),
+                                      onLevelChanged: (lvl) => setState(() => _levels[Sport.values[i]] = lvl),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            FilledButton(
+                              onPressed: _saving ? null : _save,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: TUColors.brand,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(double.infinity, 52),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(TUColors.rMd)),
+                                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                              ),
+                              child: _saving
+                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                  : const Text('Save changes'),
+                            ),
+                          ],
                         ),
-                      ],
-                    ],
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 28),
-                FilledButton(
-                  onPressed: _saving ? null : _save,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: TUColors.brand,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(TUColors.rMd)),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
-                  child: _saving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Save changes'),
                 ),
               ],
             ),
@@ -363,9 +378,8 @@ class _BirthDateField extends StatelessWidget {
             height: 52,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: TUColors.surface,
+              color: TUColors.surface2,
               borderRadius: BorderRadius.circular(TUColors.rMd),
-              border: Border.all(color: TUColors.line2, width: 1.5),
             ),
             child: Row(
               children: [
@@ -426,20 +440,28 @@ class _Label extends StatelessWidget {
 InputDecoration _fieldDecoration({String? hint}) => InputDecoration(
       isDense: true,
       filled: true,
-      fillColor: TUColors.surface,
+      fillColor: TUColors.surface2,
       hintText: hint,
       hintStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TUColors.ink3),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        borderSide: BorderSide.none,
+      ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(TUColors.rMd),
-        borderSide: const BorderSide(color: TUColors.line2, width: 1.5),
+        borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(TUColors.rMd),
-        borderSide: const BorderSide(color: TUColors.brand, width: 1.5),
+        borderSide: const BorderSide(color: TUColors.brand, width: 1.4),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(TUColors.rMd),
-        borderSide: const BorderSide(color: Color(0xFFB23B2E), width: 1.5),
+        borderSide: const BorderSide(color: Color(0xFFB23B2E), width: 1.4),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        borderSide: const BorderSide(color: Color(0xFFB23B2E), width: 1.4),
       ),
     );

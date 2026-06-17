@@ -6,6 +6,7 @@ import 'package:logger/logger.dart';
 import 'package:teamup/core/enums/sport.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
 import 'package:teamup/core/theme/design_tokens.dart';
+import 'package:teamup/core/theme/sport_tile.dart';
 import 'package:teamup/shared/widgets/page_header.dart';
 import 'package:teamup/features/venues/bloc/venue_bloc.dart';
 import 'package:teamup/features/venues/data/venue_service.dart';
@@ -562,46 +563,88 @@ class _DetailsPanel extends StatelessWidget {
   }
 }
 
+/// Photo-free, on-brand venue header: a pitch-green gradient with subtle
+/// decorative discs and a storefront glyph. Mirrors the illustrated tile
+/// language used across the app instead of a hero photo.
 class _Hero extends StatelessWidget {
   const _Hero({required this.venue});
   final VenueModel venue;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: venue.imageUrl != null
-            ? Image.network(
-                venue.imageUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _fallback(colors),
-              )
-            : _fallback(colors),
+      borderRadius: BorderRadius.circular(TUColors.rLg),
+      child: SizedBox(
+        height: 150,
+        width: double.infinity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [TUColors.brand, TUColors.brand900],
+                ),
+              ),
+            ),
+            Positioned(right: -28, top: -28, child: _disc(130, .12)),
+            Positioned(right: 56, bottom: -56, child: _disc(120, .08)),
+            const Center(
+              child: Icon(Icons.storefront_rounded, size: 50, color: Colors.white),
+            ),
+            if (venue.sports.isNotEmpty)
+              Positioned(
+                left: 12,
+                bottom: 12,
+                right: 12,
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final s in venue.sports.take(4)) _HeroSportChip(sport: s),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _fallback(ColorScheme colors) {
-    return DecoratedBox(
+  Widget _disc(double size, double opacity) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: opacity),
+      shape: BoxShape.circle,
+    ),
+  );
+}
+
+class _HeroSportChip extends StatelessWidget {
+  const _HeroSportChip({required this.sport});
+  final Sport sport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colors.primary.withAlpha(40),
-            colors.secondary.withAlpha(40),
-          ],
-        ),
+        color: Colors.white.withValues(alpha: .18),
+        borderRadius: BorderRadius.circular(TUColors.rPill),
       ),
-      child: Center(
-        child: Icon(
-          Icons.storefront_rounded,
-          size: 40,
-          color: colors.onSurface.withAlpha(120),
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SportGlyph(sport: sport, size: 12, color: Colors.white),
+          const SizedBox(width: 5),
+          Text(
+            sport.label,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+          ),
+        ],
       ),
     );
   }
@@ -630,29 +673,24 @@ class _SportBadge extends StatelessWidget {
   final Sport sport;
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final accent = sport.color;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: colors.secondary.withAlpha(20),
+        color: accent.withAlpha(22),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Image.asset(
-            sport.iconPath,
-            width: 12,
-            height: 12,
-            color: colors.secondary,
-          ),
+          SportGlyph(sport: sport, size: 12, color: accent),
           const SizedBox(width: 5),
           Text(
             sport.label,
             style: TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: colors.secondary,
+              fontWeight: FontWeight.w700,
+              color: accent,
             ),
           ),
         ],
@@ -681,9 +719,10 @@ class _FacilitiesCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.onSurface.withAlpha(20)),
+        color: TUColors.surface,
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        border: Border.all(color: TUColors.line),
+        boxShadow: TUColors.shSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -809,9 +848,10 @@ class _OpeningHoursCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.onSurface.withAlpha(20)),
+        color: TUColors.surface,
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        border: Border.all(color: TUColors.line),
+        boxShadow: TUColors.shSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1458,7 +1498,7 @@ class _SportGroupHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final accent = sport.color;
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 6),
       child: Row(
@@ -1468,16 +1508,11 @@ class _SportGroupHeader extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: colors.secondary.withAlpha(22),
+              color: accent.withAlpha(22),
               shape: BoxShape.circle,
             ),
             child: Center(
-              child: Image.asset(
-                sport.iconPath,
-                width: 16,
-                height: 16,
-                color: colors.secondary,
-              ),
+              child: SportGlyph(sport: sport, size: 16, color: accent),
             ),
           ),
           const SizedBox(width: 12),
@@ -1486,22 +1521,21 @@ class _SportGroupHeader extends StatelessWidget {
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
               letterSpacing: -0.2,
+              color: TUColors.ink,
             ),
           ),
           const SizedBox(width: 8),
           Text(
             '· $count',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: colors.onSurface.withAlpha(120),
+              color: TUColors.ink3,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(width: 14),
           // Trailing rule that extends to fill — gives the section a
           // clear top boundary across the panel width.
-          Expanded(
-            child: Container(height: 1, color: colors.onSurface.withAlpha(20)),
-          ),
+          Expanded(child: Container(height: 1, color: TUColors.line)),
         ],
       ),
     );
@@ -1523,275 +1557,186 @@ class _PitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final priceAmount = (pitch.pricePerHour / 100).toStringAsFixed(0);
-    final cover = pitch.imageUrls.isNotEmpty ? pitch.imageUrls.first : null;
-    final photoCount = pitch.imageUrls.length;
     final dimmed = !pitch.active;
+    const radius = BorderRadius.all(Radius.circular(TUColors.rMd));
 
     return SizedBox(
       width: width,
-      child: Card(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: colors.onSurface.withAlpha(20)),
-        ),
-        child: Opacity(
-          opacity: dimmed ? 0.62 : 1,
-          child: InkWell(
-            onTap: () => AddEditPitchDialog.show(
-              context,
-              venueId: venueId,
-              pitch: pitch,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ── Image header with overlays ──
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (cover != null)
-                        Image.network(
-                          cover,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _imageFallback(colors),
-                        )
-                      else
-                        _imageFallback(colors),
-                      // Overall darkening so photos read as backdrops, not
-                      // visual noise. Combined with a stronger bottom
-                      // gradient so the status pill always pops.
-                      if (cover != null)
-                        Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withAlpha(60),
-                            ),
-                          ),
-                        ),
+      child: Opacity(
+        opacity: dimmed ? 0.62 : 1,
+        child: Container(
+          decoration: BoxDecoration(
+            color: TUColors.surface,
+            borderRadius: radius,
+            border: Border.all(color: TUColors.line),
+            boxShadow: TUColors.shSm,
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              borderRadius: radius,
+              onTap: () => AddEditPitchDialog.show(
+                context,
+                venueId: venueId,
+                pitch: pitch,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Illustrated, photo-free header ──
+                  SportTile(
+                    sport: pitch.sport,
+                    height: 118,
+                    glyphSize: 46,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(TUColors.rMd),
+                    ),
+                    overlay: [
                       Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        height: 80,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                              colors: [
-                                Colors.black.withAlpha(150),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
+                        top: 10,
+                        left: 10,
+                        child: TilePill(
+                          icon: pitch.indoor
+                              ? Icons.roofing_rounded
+                              : Icons.wb_sunny_outlined,
+                          label: pitch.indoor ? 'Indoor' : 'Outdoor',
                         ),
                       ),
-                      // Status pill (top-right)
                       Positioned(
                         top: 10,
                         right: 10,
                         child: _StatusDot(active: pitch.active),
                       ),
-                      // Photo count (bottom-left)
-                      if (photoCount > 1)
-                        Positioned(
-                          left: 10,
-                          bottom: 10,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withAlpha(140),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.photo_library_outlined,
-                                  size: 11,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$photoCount',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
                     ],
                   ),
-                ),
 
-                // ── Body ──
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Name + edit affordance
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              pitch.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: colors.onSurface.withAlpha(10),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.edit_outlined,
-                              size: 14,
-                              color: colors.onSurface.withAlpha(150),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Image.asset(
-                            pitch.sport.iconPath,
-                            width: 13,
-                            height: 13,
-                            color: colors.secondary,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            pitch.sport.label,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.secondary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Icon(
-                            Icons.group_outlined,
-                            size: 13,
-                            color: colors.onSurface.withAlpha(140),
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            '${pitch.maxPlayers}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurface.withAlpha(160),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          _Mini(
-                            icon: pitch.indoor
-                                ? Icons.roofing_rounded
-                                : Icons.wb_sunny_outlined,
-                            label: pitch.indoor ? 'Indoor' : 'Outdoor',
-                          ),
-                          _Mini(
-                            icon: Icons.lightbulb_outline,
-                            label: pitch.isIlluminated ? 'Lit' : 'No lights',
-                            muted: !pitch.isIlluminated,
-                          ),
-                          if (pitch.surface != null)
-                            _Mini(
-                              icon: Icons.grass_outlined,
-                              label: pitch.surface!,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.primary.withAlpha(15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
+                  // ── Body ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Name + edit affordance
+                        Row(
                           children: [
-                            Text(
-                              priceAmount,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: colors.primary,
-                                fontWeight: FontWeight.w800,
+                            Expanded(
+                              child: Text(
+                                pitch.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: TUColors.ink,
+                                ),
                               ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: const BoxDecoration(
+                                color: TUColors.surface2,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.edit_outlined,
+                                size: 14,
+                                color: TUColors.ink3,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            SportGlyph(
+                              sport: pitch.sport,
+                              size: 13,
+                              color: pitch.sport.color,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              pitch.sport.label,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: pitch.sport.color,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(
+                              Icons.group_outlined,
+                              size: 13,
+                              color: TUColors.ink3,
                             ),
                             const SizedBox(width: 3),
                             Text(
-                              '${pitch.currency}/h',
+                              '${pitch.maxPlayers}',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: colors.primary.withAlpha(180),
+                                color: TUColors.ink2,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _Mini(
+                              icon: Icons.lightbulb_outline,
+                              label: pitch.isIlluminated ? 'Lit' : 'No lights',
+                              muted: !pitch.isIlluminated,
+                            ),
+                            if (pitch.surface != null)
+                              _Mini(
+                                icon: Icons.grass_outlined,
+                                label: pitch.surface!,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: TUColors.brandTint,
+                            borderRadius: BorderRadius.circular(TUColors.rSm),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(
+                                priceAmount,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: TUColors.brand700,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${pitch.currency}/h',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: TUColors.brand700.withAlpha(180),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _imageFallback(ColorScheme colors) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colors.secondary.withAlpha(40),
-            colors.primary.withAlpha(40),
-          ],
-        ),
-      ),
-      child: Center(
-        child: Image.asset(
-          pitch.sport.iconPath,
-          width: 44,
-          height: 44,
-          color: Colors.white.withAlpha(200),
         ),
       ),
     );
@@ -1855,14 +1800,11 @@ class _Mini extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final fg = muted
-        ? colors.onSurface.withAlpha(110)
-        : colors.onSurface.withAlpha(170);
+    final fg = muted ? TUColors.ink3 : TUColors.ink2;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: colors.onSurface.withAlpha(10),
+        color: TUColors.surface2,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(

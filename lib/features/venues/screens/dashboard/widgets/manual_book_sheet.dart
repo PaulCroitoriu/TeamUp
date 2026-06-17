@@ -154,7 +154,6 @@ class _ManualBookSheetState extends State<_ManualBookSheet> {
   _LookupState _lookup = _LookupState.idle;
   Timer? _phoneDebounce;
 
-  PaymentMethod _paymentMethod = PaymentMethod.cash;
   bool _recurring = false;
 
   bool get _hasPitchPicker => widget.initialPitch == null;
@@ -227,12 +226,17 @@ class _ManualBookSheetState extends State<_ManualBookSheet> {
   Future<void> _save() async {
     final phone = _phoneCtrl.text.trim();
     final name = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Customer name is required');
+      return;
+    }
     if (phone.isEmpty) {
       setState(() => _error = 'Phone number is required');
       return;
     }
-    if (name.isEmpty) {
-      setState(() => _error = 'Customer name is required');
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'A valid email is required');
       return;
     }
 
@@ -253,29 +257,31 @@ class _ManualBookSheetState extends State<_ManualBookSheet> {
     });
 
     final now = DateTime.now();
-    final isCash = _paymentMethod == PaymentMethod.cash;
-    final email = _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim();
     final notes = _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim();
 
+    // Manual bookings are cash on premises → confirmed and paid on creation.
     BookingModel template({required DateTime start, required DateTime end}) => BookingModel(
       id: '',
       pitchId: _pitch.id,
       venueId: venue.id,
       businessId: venue.businessId,
-      bookerId: uid,
+      // The organizer is the customer the booking is for. When the phone
+      // lookup matched an account, that account owns the booking; otherwise
+      // (off-app customer) we fall back to the owner who entered it.
+      bookerId: _matchedUser?.uid ?? uid,
       startTime: start,
       endTime: end,
       pricePaid: _pitch.pricePerHour * _durationHours,
       currency: _pitch.currency,
-      status: isCash ? BookingStatus.confirmed : BookingStatus.pending,
-      paymentMethod: _paymentMethod,
+      status: BookingStatus.confirmed,
+      paymentMethod: PaymentMethod.cash,
       customerName: name,
       customerPhone: phone,
       customerEmail: email,
       customerUserId: _matchedUser?.uid,
       notes: notes,
-      confirmedAt: isCash ? now : null,
-      paidAt: isCash ? now : null,
+      confirmedAt: now,
+      paidAt: now,
       createdAt: now,
     );
 
@@ -422,7 +428,7 @@ class _ManualBookSheetState extends State<_ManualBookSheet> {
                     enabled: !_saving,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
-                      labelText: 'Email (optional)',
+                      labelText: 'Email',
                       prefixIcon: Icon(Icons.mail_outline_rounded, size: 18),
                       border: OutlineInputBorder(),
                     ),
@@ -485,10 +491,7 @@ class _ManualBookSheetState extends State<_ManualBookSheet> {
                   // ── Payment method ───────────────────────────────────
                   _sectionLabel(theme, colors, 'Payment method'),
                   const SizedBox(height: 8),
-                  _PaymentMethodPicker(
-                    selected: _paymentMethod,
-                    onChanged: _saving ? null : (m) => setState(() => _paymentMethod = m),
-                  ),
+                  const _PaymentMethodPicker(),
                   const SizedBox(height: 18),
 
                   // ── Recurring ────────────────────────────────────────
@@ -584,13 +587,7 @@ class _ManualBookSheetState extends State<_ManualBookSheet> {
     );
   }
 
-  String _saveButtonLabel() {
-    final cash = _paymentMethod == PaymentMethod.cash;
-    if (_recurring) {
-      return cash ? 'Save series · paid' : 'Save series · awaiting payment';
-    }
-    return cash ? 'Save · paid in cash' : 'Save · awaiting card payment';
-  }
+  String _saveButtonLabel() => _recurring ? 'Save series · paid in cash' : 'Save · paid in cash';
 }
 
 class _LookupBanner extends StatelessWidget {
@@ -666,31 +663,28 @@ class _Banner extends StatelessWidget {
 }
 
 class _PaymentMethodPicker extends StatelessWidget {
-  const _PaymentMethodPicker({required this.selected, required this.onChanged});
-  final PaymentMethod selected;
-  final ValueChanged<PaymentMethod>? onChanged;
+  const _PaymentMethodPicker();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return const Row(
       children: [
         Expanded(
           child: _PaymentOption(
             label: 'Cash on premise',
-            sub: 'Booking is confirmed',
+            sub: 'Confirmed & paid on save',
             icon: Icons.payments_rounded,
-            selected: selected == PaymentMethod.cash,
-            onTap: onChanged == null ? null : () => onChanged!(PaymentMethod.cash),
+            selected: true,
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: _PaymentOption(
-            label: 'Online by card',
-            sub: 'Awaiting payment',
-            icon: Icons.credit_card_rounded,
-            selected: selected == PaymentMethod.card,
-            onTap: onChanged == null ? null : () => onChanged!(PaymentMethod.card),
+            label: 'Send payment link',
+            sub: 'Pay online — coming soon',
+            icon: Icons.ios_share_rounded,
+            selected: false,
+            disabled: true,
           ),
         ),
       ],
@@ -699,59 +693,70 @@ class _PaymentMethodPicker extends StatelessWidget {
 }
 
 class _PaymentOption extends StatelessWidget {
-  const _PaymentOption({required this.label, required this.sub, required this.icon, required this.selected, required this.onTap});
+  const _PaymentOption({required this.label, required this.sub, required this.icon, required this.selected, this.disabled = false});
 
   final String label;
   final String sub;
   final IconData icon;
   final bool selected;
-  final VoidCallback? onTap;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final accent = colors.primary;
-    return Material(
-      color: selected ? accent.withAlpha(20) : colors.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          decoration: BoxDecoration(
-            border: Border.all(color: selected ? accent : colors.onSurface.withAlpha(22), width: selected ? 1.4 : 1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, size: 20, color: selected ? accent : colors.onSurface.withAlpha(180)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: selected ? accent : colors.onSurface),
-                    ),
-                    Text(
-                      sub,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(140), fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
+    final fg = disabled ? colors.onSurface.withAlpha(90) : (selected ? accent : colors.onSurface);
+
+    return Opacity(
+      opacity: disabled ? 0.7 : 1,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: disabled ? colors.onSurface.withAlpha(8) : (selected ? accent.withAlpha(20) : colors.surface),
+          border: Border.all(color: selected ? accent : colors.onSurface.withAlpha(22), width: selected ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: disabled ? colors.onSurface.withAlpha(120) : (selected ? accent : colors.onSurface.withAlpha(180))),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: fg),
+                        ),
+                      ),
+                      if (disabled) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(color: colors.onSurface.withAlpha(18), borderRadius: BorderRadius.circular(6)),
+                          child: Text('Soon', style: theme.textTheme.labelSmall?.copyWith(fontSize: 9, fontWeight: FontWeight.w800, color: colors.onSurface.withAlpha(150))),
+                        ),
+                      ],
+                    ],
+                  ),
+                  Text(
+                    sub,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(140), fontWeight: FontWeight.w600),
+                  ),
+                ],
               ),
-              if (selected) Icon(Icons.check_circle_rounded, size: 18, color: accent),
-            ],
-          ),
+            ),
+            if (selected) Icon(Icons.check_circle_rounded, size: 18, color: accent),
+          ],
         ),
       ),
     );

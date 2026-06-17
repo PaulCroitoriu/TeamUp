@@ -202,8 +202,23 @@ class _BookingViewState extends State<_BookingView> {
   bool get _isOwner => _uid == ctx.business.ownerUid;
   bool get _isBooker => _uid == booking.bookerId;
 
-  bool get _canConfirm => _isOwner && booking.status == BookingStatus.pending;
-  bool get _canCancel => (_isOwner || _isBooker) && booking.status != BookingStatus.cancelled;
+  // A booking whose slot has already finished is read-only: no one can confirm,
+  // cancel, or open it — the data is there to look at, nothing to act on.
+  bool get _isPast => booking.endTime.isBefore(DateTime.now());
+
+  // The venue's cancellation policy: a player must cancel at least N hours
+  // before kick-off. The owner is never bound by it. 0 = no restriction.
+  bool get _cancelLockedByPolicy {
+    if (_isOwner) return false;
+    final h = ctx.business.cancellationNoticeHours;
+    if (h <= 0) return false;
+    final deadline = booking.startTime.subtract(Duration(hours: h));
+    return DateTime.now().isAfter(deadline);
+  }
+
+  bool get _canConfirm => _isOwner && booking.status == BookingStatus.pending && !_isPast;
+  bool get _canCancel =>
+      (_isOwner || _isBooker) && booking.status != BookingStatus.cancelled && !_isPast && !_cancelLockedByPolicy;
   bool get _canOpenToPlayers =>
       _isBooker && booking.gameId == null && booking.status != BookingStatus.cancelled && booking.startTime.isAfter(DateTime.now());
 
@@ -282,7 +297,7 @@ class _BookingViewState extends State<_BookingView> {
     );
     if (confirmed != true) return;
     try {
-      await _bookingService.cancelBooking(booking.id);
+      await _bookingService.cancelBooking(booking.id, actorUid: uid);
       final recipient = uid == ctx.business.ownerUid ? booking.bookerId : ctx.business.ownerUid;
       await _notificationService.create(
         NotificationModel(
@@ -296,6 +311,9 @@ class _BookingViewState extends State<_BookingView> {
         ),
       );
       messenger.showSnackBar(const SnackBar(content: Text('Booking cancelled')));
+    } on CancellationNotAllowedException catch (e) {
+      _log.w('Cancellation blocked by policy: ${e.message}');
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e, st) {
       _log.e('Cancel booking failed', error: e, stackTrace: st);
       messenger.showSnackBar(SnackBar(content: Text(e.toString())));
@@ -421,6 +439,19 @@ class _BookingViewState extends State<_BookingView> {
 
     // ── Right column: the activity (team / actions / admin timeline) ──
     final right = <Widget>[
+      if (_isPast && booking.status != BookingStatus.cancelled) ...[
+        const _InfoNote(
+          icon: Icons.history_rounded,
+          text: 'This booking has ended. It’s now read-only — you can review the details, but nothing can be changed.',
+        ),
+        const SizedBox(height: 12),
+      ] else if (_isBooker && _cancelLockedByPolicy && booking.status != BookingStatus.cancelled) ...[
+        _InfoNote(
+          icon: Icons.event_busy_outlined,
+          text: 'Free cancellation closed — this venue needs ${ctx.business.cancellationNoticeHours}h notice. Contact them directly if you can’t make it.',
+        ),
+        const SizedBox(height: 12),
+      ],
       if (isGame) GamePanel(gameId: booking.gameId!),
       if (_canOpenToPlayers) ...[
         FilledButton.icon(
@@ -451,21 +482,48 @@ class _BookingViewState extends State<_BookingView> {
       ],
     ];
 
-    if (wide) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(flex: 5, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: left)),
-            const SizedBox(width: 20),
-            Expanded(flex: 6, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: right)),
-          ],
-        ),
+    // Desktop: a true split — two independently scrolling, labelled panels
+    // separated by a vertical rule, mirroring the Venues screen. Falls back to
+    // a single centred column when there's no activity to show on the right
+    // (e.g. a visitor viewing a private booking).
+    if (wide && right.isNotEmpty) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 5,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 10, 28, 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _CardLabel('Details'),
+                  const SizedBox(height: 12),
+                  ...left,
+                ],
+              ),
+            ),
+          ),
+          const VerticalDivider(width: 1, thickness: 1, color: TUColors.line),
+          Expanded(
+            flex: 6,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(28, 10, 20, 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _CardLabel(isGame ? 'Players & activity' : 'Activity'),
+                  const SizedBox(height: 12),
+                  ...right,
+                ],
+              ),
+            ),
+          ),
+        ],
       );
     }
 
-    return ListView(
+    final single = ListView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
       children: [
         ...left,
@@ -473,6 +531,12 @@ class _BookingViewState extends State<_BookingView> {
         ...right,
       ],
     );
+    // On wide screens with nothing on the right, keep the column readable
+    // instead of stretching it across the full width.
+    if (wide) {
+      return Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 640), child: single));
+    }
+    return single;
   }
 
   Widget _factsCard({required bool isAdmin, required bool isGame}) {
@@ -786,6 +850,34 @@ class _Pill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(TUColors.rPill)),
       child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: fg)),
+    );
+  }
+}
+
+class _InfoNote extends StatelessWidget {
+  const _InfoNote({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: TUColors.surface2,
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        border: Border.all(color: TUColors.line),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: TUColors.ink3),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: TUColors.ink2, height: 1.45)),
+          ),
+        ],
+      ),
     );
   }
 }

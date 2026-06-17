@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:teamup/core/enums/booking_status.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
+import 'package:teamup/features/auth/data/auth_service.dart';
 import 'package:teamup/features/bookings/bloc/booking_bloc.dart';
 import 'package:teamup/features/bookings/data/booking_service.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
@@ -127,9 +128,19 @@ class _BookingsShellState extends State<_BookingsShell> {
   }
 }
 
+// ─── Booking reference ──────────────────────────────────────
+
+/// Short, human-readable booking number derived from the doc id, e.g.
+/// "#A1B2C3". Stable for a given booking and easy to read out over the phone.
+String bookingRef(BookingModel b) {
+  final id = b.id;
+  final take = id.length < 6 ? id.length : 6;
+  return '#${id.substring(0, take).toUpperCase()}';
+}
+
 // ─── Body ───────────────────────────────────────────────────
 
-class _BookingsBody extends StatelessWidget {
+class _BookingsBody extends StatefulWidget {
   const _BookingsBody({
     required this.bookings,
     required this.statusFilter,
@@ -147,7 +158,60 @@ class _BookingsBody extends StatelessWidget {
   final VoidCallback onClearFilters;
 
   @override
+  State<_BookingsBody> createState() => _BookingsBodyState();
+}
+
+class _BookingsBodyState extends State<_BookingsBody> {
+  final _authService = AuthService();
+
+  /// bookerId → short display name, resolved lazily. Bookings made for an
+  /// off-app customer carry their own [customerName] and skip this lookup.
+  final Map<String, String> _names = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveNames();
+  }
+
+  @override
+  void didUpdateWidget(covariant _BookingsBody old) {
+    super.didUpdateWidget(old);
+    _resolveNames();
+  }
+
+  Future<void> _resolveNames() async {
+    final missing = <String>{};
+    for (final b in widget.bookings) {
+      final hasCustomerName =
+          b.customerName != null && b.customerName!.trim().isNotEmpty;
+      if (hasCustomerName) continue;
+      if (!_names.containsKey(b.bookerId)) missing.add(b.bookerId);
+    }
+    if (missing.isEmpty) return;
+    final users = await _authService.getUsersByIds(missing.toList());
+    if (!mounted) return;
+    setState(() {
+      for (final u in users) {
+        _names[u.uid] = u.shortName;
+      }
+    });
+  }
+
+  /// Display name for a booking: the captured off-app customer name, the
+  /// resolved account name, or a stable fallback derived from the id.
+  String _displayName(BookingModel b) {
+    final custom = b.customerName?.trim();
+    if (custom != null && custom.isNotEmpty) return custom;
+    return _names[b.bookerId] ?? 'Guest · ${bookingRef(b)}';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final bookings = widget.bookings;
+    final statusFilter = widget.statusFilter;
+    final query = widget.query;
+
     final isMobile = MediaQuery.sizeOf(context).width < _mobileBreakpoint;
     final hPad = isMobile ? 20.0 : 32.0;
 
@@ -158,8 +222,13 @@ class _BookingsBody extends StatelessWidget {
         return false;
       }
       if (q.isEmpty) return true;
-      // Match on booking number prefix (the first 6 chars we display).
-      return b.id.toLowerCase().contains(q);
+      // Match on booking number, customer name, or phone.
+      if (bookingRef(b).toLowerCase().contains(q)) return true;
+      if (b.id.toLowerCase().contains(q)) return true;
+      if (_displayName(b).toLowerCase().contains(q)) return true;
+      final phone = b.customerPhone?.toLowerCase();
+      if (phone != null && phone.contains(q)) return true;
+      return false;
     }).toList();
 
     final groups = _groupByDate(filtered);
@@ -177,13 +246,13 @@ class _BookingsBody extends StatelessWidget {
           children: [
             _Header(count: bookings.length),
             const SizedBox(height: 12),
-            _BookingsSearch(initial: query, onChanged: onQuery),
+            _BookingsSearch(initial: query, onChanged: widget.onQuery),
             const SizedBox(height: 12),
             _StatusChipsRow(
               counts: counts,
               selected: statusFilter,
-              onToggle: onToggleStatus,
-              onClear: onClearFilters,
+              onToggle: widget.onToggleStatus,
+              onClear: widget.onClearFilters,
             ),
             const SizedBox(height: 22),
             if (filtered.isEmpty)
@@ -204,7 +273,12 @@ class _BookingsBody extends StatelessWidget {
               _GroupHeader(label: group.label),
               const SizedBox(height: 10),
               for (final b in group.bookings) ...[
-                BookingCard(booking: b, showBooker: true, actionNeeded: b.status == BookingStatus.pending),
+                BookingCard(
+                  booking: b,
+                  showBooker: true,
+                  bookerName: _displayName(b),
+                  actionNeeded: b.status == BookingStatus.pending,
+                ),
                 const SizedBox(height: 10),
               ],
               SizedBox(height: isMobile ? 18 : 28),
@@ -665,11 +739,16 @@ class BookingCard extends StatelessWidget {
     super.key,
     required this.booking,
     this.showBooker = false,
+    this.bookerName,
     this.actionNeeded = false,
   });
 
   final BookingModel booking;
   final bool showBooker;
+
+  /// Resolved name of the person who made the booking. Shown when
+  /// [showBooker] is true (owner-facing list).
+  final String? bookerName;
 
   /// Highlights the card when the viewer must act on it (e.g. an owner with a
   /// pending booking to confirm).
@@ -747,15 +826,16 @@ class BookingCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Expanded(
-                            child: Text(
-                              '${_time(start)} – ${_time(booking.endTime)}',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.2,
-                              ),
+                          _RefBadge(label: bookingRef(booking)),
+                          if (booking.recurring) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.repeat_rounded,
+                              size: 13,
+                              color: colors.onSurface.withAlpha(120),
                             ),
-                          ),
+                          ],
+                          const Spacer(),
                           if (actionNeeded) ...[
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -777,11 +857,49 @@ class BookingCard extends StatelessWidget {
                           _StatusPill(status: booking.status),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
+                      if (showBooker) ...[
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.person_rounded,
+                              size: 15,
+                              color: colors.onSurface.withAlpha(150),
+                            ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                bookerName ?? 'Guest',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                      ],
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.baseline,
                         textBaseline: TextBaseline.alphabetic,
                         children: [
+                          Icon(
+                            Icons.schedule_rounded,
+                            size: 13,
+                            color: colors.onSurface.withAlpha(130),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${_time(start)} – ${_time(booking.endTime)}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colors.onSurface.withAlpha(200),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
                           Text(
                             '$priceAmount ${booking.currency}',
                             style: theme.textTheme.bodyLarge?.copyWith(
@@ -789,22 +907,6 @@ class BookingCard extends StatelessWidget {
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          if (showBooker) ...[
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.person_outline_rounded,
-                              size: 13,
-                              color: colors.onSurface.withAlpha(120),
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '#${booking.bookerId.substring(0, 6)}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colors.onSurface.withAlpha(140),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
                           const Spacer(),
                           Icon(
                             Icons.chevron_right_rounded,
@@ -812,6 +914,28 @@ class BookingCard extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (showBooker &&
+                          booking.customerPhone != null &&
+                          booking.customerPhone!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.phone_rounded,
+                              size: 12,
+                              color: colors.onSurface.withAlpha(120),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              booking.customerPhone!.trim(),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurface.withAlpha(150),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       if (booking.notes != null &&
                           booking.notes!.isNotEmpty) ...[
                         const SizedBox(height: 6),
@@ -884,6 +1008,33 @@ class _DateBlock extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RefBadge extends StatelessWidget {
+  const _RefBadge({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: colors.onSurface.withAlpha(12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+          fontFeatures: const [FontFeature.tabularFigures()],
+          color: colors.onSurface.withAlpha(170),
+        ),
       ),
     );
   }

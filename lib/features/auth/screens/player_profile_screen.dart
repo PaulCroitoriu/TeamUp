@@ -4,6 +4,7 @@ import 'package:teamup/core/theme/design_tokens.dart';
 import 'package:teamup/features/auth/data/auth_service.dart';
 import 'package:teamup/features/auth/models/user_model.dart';
 import 'package:teamup/features/auth/widgets/player_profile_view.dart';
+import 'package:teamup/shared/widgets/page_header.dart';
 
 final _log = Logger();
 
@@ -63,22 +64,50 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     final hasActions = widget.onApprove != null || widget.onDecline != null || widget.onRemove != null;
     return Scaffold(
       backgroundColor: TUColors.bg,
-      appBar: AppBar(
-        backgroundColor: TUColors.bg,
-        foregroundColor: TUColors.ink,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Player', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-      ),
-      body: FutureBuilder<UserModel>(
-        future: _user,
-        builder: (context, snap) {
-          if (snap.hasError) {
-            return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Could not load this player: ${snap.error}', textAlign: TextAlign.center)));
-          }
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-          return PlayerProfileView(user: snap.data!);
-        },
+      body: SafeArea(
+        bottom: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+            child: FutureBuilder<UserModel>(
+              future: _user,
+              builder: (context, snap) {
+                if (snap.hasError) {
+                  _log.e('Load player profile failed', error: snap.error, stackTrace: snap.stackTrace);
+                }
+                final user = snap.data;
+                final name = user == null ? '' : '${user.firstName} ${user.lastName}'.trim();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    PageHeader(
+                      leading: const HeaderBackButton(),
+                      title: name.isEmpty ? 'Profile' : name,
+                      subtitle: user?.role.label,
+                    ),
+                    Expanded(
+                      child: snap.hasError
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Text(
+                                  'Could not load this player: ${snap.error}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: TUColors.ink2),
+                                ),
+                              ),
+                            )
+                          : user == null
+                              ? const Center(child: CircularProgressIndicator())
+                              : PlayerProfileView(user: user),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
       ),
       bottomNavigationBar: hasActions
           ? _ActionBar(busy: _busy, onApprove: widget.onApprove, onDecline: widget.onDecline, onRemove: widget.onRemove, act: _act, onConfirmRemove: _confirmRemove)

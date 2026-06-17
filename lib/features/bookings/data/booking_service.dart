@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:teamup/core/enums/booking_status.dart';
 import 'package:teamup/core/enums/game_status.dart';
@@ -14,6 +16,16 @@ class BookingConflictException implements Exception {
   String toString() => 'BookingConflictException: $message';
 }
 
+/// Thrown when a player tries to cancel inside the venue's cancellation-notice
+/// window. The booking owner (business) is never subject to this.
+class CancellationNotAllowedException implements Exception {
+  const CancellationNotAllowedException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'CancellationNotAllowedException: $message';
+}
+
 class BookingService {
   BookingService({FirebaseFirestore? firestore}) : _firestore = firestore ?? db;
 
@@ -22,12 +34,55 @@ class BookingService {
   CollectionReference<Map<String, dynamic>> get _ref => _firestore.collection('bookings');
 
   /// Stream the current user's bookings, most recent first.
+  ///
+  /// Includes both bookings the user made themselves ([bookerId]) and
+  /// bookings an owner created on their behalf where the phone lookup matched
+  /// their account ([customerUserId]). The two queries are merged and sorted
+  /// client-side so neither needs a composite index.
   Stream<List<BookingModel>> streamUserBookings(String userId) {
-    return _ref
-        .where('bookerId', isEqualTo: userId)
-        .orderBy('startTime', descending: true)
-        .snapshots()
-        .map((snap) => snap.docs.map(BookingModel.fromFirestore).toList());
+    final asBooker = _ref.where('bookerId', isEqualTo: userId).snapshots();
+    final asCustomer = _ref.where('customerUserId', isEqualTo: userId).snapshots();
+    return _mergeBookingStreams(asBooker, asCustomer);
+  }
+
+  /// Combine-latest of two booking query streams: emits the de-duplicated
+  /// union (by doc id) sorted by start time descending whenever either side
+  /// updates.
+  Stream<List<BookingModel>> _mergeBookingStreams(
+    Stream<QuerySnapshot<Map<String, dynamic>>> a,
+    Stream<QuerySnapshot<Map<String, dynamic>>> b,
+  ) {
+    final controller = StreamController<List<BookingModel>>();
+    List<BookingModel>? latestA;
+    List<BookingModel>? latestB;
+    StreamSubscription? subA;
+    StreamSubscription? subB;
+
+    void emit() {
+      if (latestA == null && latestB == null) return;
+      final byId = <String, BookingModel>{};
+      for (final x in [...?latestA, ...?latestB]) {
+        byId[x.id] = x;
+      }
+      final list = byId.values.toList()..sort((m, n) => n.startTime.compareTo(m.startTime));
+      controller.add(list);
+    }
+
+    controller.onListen = () {
+      subA = a.listen((s) {
+        latestA = s.docs.map(BookingModel.fromFirestore).toList();
+        emit();
+      }, onError: controller.addError);
+      subB = b.listen((s) {
+        latestB = s.docs.map(BookingModel.fromFirestore).toList();
+        emit();
+      }, onError: controller.addError);
+    };
+    controller.onCancel = () async {
+      await subA?.cancel();
+      await subB?.cancel();
+    };
+    return controller.stream;
   }
 
   /// Stream all bookings for a business (across its venues), upcoming first.
@@ -134,10 +189,36 @@ class BookingService {
   /// Cancel a booking, freeing the slot. If the booking is tied to an open
   /// game, the game is cancelled in the same batch so its slot is released too
   /// (the booking grid treats any non-cancelled game as occupying the slot).
-  Future<void> cancelBooking(String id) async {
+  Future<void> cancelBooking(String id, {String? actorUid}) async {
     final snap = await _ref.doc(id).get();
+    if (!snap.exists) throw Exception('Booking not found: $id');
+    final data = snap.data()!;
+
+    // Enforce the venue's cancellation-notice policy. The owning business is
+    // exempt; only the booker (a player) is held to the window. Skipped when
+    // [actorUid] is null (internal/admin call sites that opt out).
+    if (actorUid != null && actorUid == (data['bookerId'] as String?)) {
+      final businessId = data['businessId'] as String?;
+      if (businessId != null) {
+        final bizDoc = await _firestore.collection('businesses').doc(businessId).get();
+        final biz = bizDoc.data();
+        final ownerUid = biz?['ownerUid'] as String?;
+        // Owner cancelling their own booking is exempt.
+        if (actorUid != ownerUid) {
+          final hours = (biz?['cancellationNoticeHours'] as num?)?.toInt() ?? 24;
+          final start = (data['startTime'] as Timestamp?)?.toDate();
+          if (hours > 0 && start != null) {
+            final deadline = start.subtract(Duration(hours: hours));
+            if (DateTime.now().isAfter(deadline)) {
+              throw CancellationNotAllowedException('This venue requires $hours hours\' notice to cancel. Please contact them directly.');
+            }
+          }
+        }
+      }
+    }
+
     final now = Timestamp.fromDate(DateTime.now());
-    final gameId = snap.exists ? (snap.data()?['gameId'] as String?) : null;
+    final gameId = data['gameId'] as String?;
 
     // Read the game up front (for player notifications) before the batch.
     final gameDoc = gameId != null ? await _firestore.collection('games').doc(gameId).get() : null;

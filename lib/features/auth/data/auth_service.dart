@@ -118,6 +118,36 @@ class AuthService {
     return _businessesRef.doc(businessId).update({'autoConfirmBookings': value});
   }
 
+  /// Set the minimum notice (in hours) a player must give to cancel.
+  Future<void> setCancellationNoticeHours(String businessId, int hours) {
+    return _businessesRef.doc(businessId).update({'cancellationNoticeHours': hours});
+  }
+
+  /// Update the editable details of a business profile and return the fresh
+  /// model. Never touches ownerUid/createdAt or the booking-policy flags
+  /// (those have their own setters).
+  Future<BusinessModel> updateBusiness({
+    required String id,
+    required String name,
+    String? phone,
+    String? email,
+    String? address,
+    String? website,
+    String? vatNumber,
+    String? registrationNumber,
+  }) async {
+    await _businessesRef.doc(id).update({
+      'name': name,
+      'phone': phone,
+      'email': email,
+      'address': address,
+      'website': website,
+      'vatNumber': vatNumber,
+      'registrationNumber': registrationNumber,
+    });
+    return getBusiness(id);
+  }
+
   Future<BusinessModel> getBusiness(String id) async {
     final doc = await _businessesRef.doc(id).get();
     if (!doc.exists) {

@@ -267,34 +267,25 @@ class _Sidebar extends StatelessWidget {
                   children: [
                     // ── Brand ──
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(11),
-                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 16, offset: const Offset(0, 6))],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(11),
-                              child: Image.asset('assets/logo/teamup-mark.png', width: 38, height: 38, fit: BoxFit.cover),
-                            ),
-                          ),
-                          if (expanded) ...[
-                            const SizedBox(width: 11),
-                            const Text.rich(
-                              TextSpan(
-                                text: 'Team',
-                                style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800, letterSpacing: -0.4),
-                                children: [
-                                  TextSpan(text: 'Up', style: TextStyle(color: TUColors.lime)),
-                                ],
+                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: expanded
+                            // Full lockup (mark + wordmark) tuned for dark backgrounds.
+                            ? Image.asset('assets/logo/teamup-lockup-dark.png', height: 52, fit: BoxFit.contain)
+                            // Collapsed rail — mark only.
+                            : Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(11),
+                                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 16, offset: const Offset(0, 6))],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(11),
+                                  child: Image.asset('assets/logo/teamup-mark.png', width: 38, height: 38, fit: BoxFit.cover),
+                                ),
                               ),
-                            ),
-                          ],
-                        ],
                       ),
                     ),
                     // ── Destinations ──
