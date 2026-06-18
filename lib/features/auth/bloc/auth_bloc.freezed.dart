@@ -55,14 +55,15 @@ extension AuthEventPatterns on AuthEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( _AppStarted value)?  appStarted,TResult Function( _SignUpRequested value)?  signUpRequested,TResult Function( _SignInRequested value)?  signInRequested,TResult Function( _SignOutRequested value)?  signOutRequested,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( _AppStarted value)?  appStarted,TResult Function( _SignUpRequested value)?  signUpRequested,TResult Function( _SignInRequested value)?  signInRequested,TResult Function( _SignOutRequested value)?  signOutRequested,TResult Function( _ProfileUpdated value)?  profileUpdated,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case _AppStarted() when appStarted != null:
 return appStarted(_that);case _SignUpRequested() when signUpRequested != null:
 return signUpRequested(_that);case _SignInRequested() when signInRequested != null:
 return signInRequested(_that);case _SignOutRequested() when signOutRequested != null:
-return signOutRequested(_that);case _:
+return signOutRequested(_that);case _ProfileUpdated() when profileUpdated != null:
+return profileUpdated(_that);case _:
   return orElse();
 
 }
@@ -80,14 +81,15 @@ return signOutRequested(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( _AppStarted value)  appStarted,required TResult Function( _SignUpRequested value)  signUpRequested,required TResult Function( _SignInRequested value)  signInRequested,required TResult Function( _SignOutRequested value)  signOutRequested,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( _AppStarted value)  appStarted,required TResult Function( _SignUpRequested value)  signUpRequested,required TResult Function( _SignInRequested value)  signInRequested,required TResult Function( _SignOutRequested value)  signOutRequested,required TResult Function( _ProfileUpdated value)  profileUpdated,}){
 final _that = this;
 switch (_that) {
 case _AppStarted():
 return appStarted(_that);case _SignUpRequested():
 return signUpRequested(_that);case _SignInRequested():
 return signInRequested(_that);case _SignOutRequested():
-return signOutRequested(_that);}
+return signOutRequested(_that);case _ProfileUpdated():
+return profileUpdated(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -101,14 +103,15 @@ return signOutRequested(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( _AppStarted value)?  appStarted,TResult? Function( _SignUpRequested value)?  signUpRequested,TResult? Function( _SignInRequested value)?  signInRequested,TResult? Function( _SignOutRequested value)?  signOutRequested,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( _AppStarted value)?  appStarted,TResult? Function( _SignUpRequested value)?  signUpRequested,TResult? Function( _SignInRequested value)?  signInRequested,TResult? Function( _SignOutRequested value)?  signOutRequested,TResult? Function( _ProfileUpdated value)?  profileUpdated,}){
 final _that = this;
 switch (_that) {
 case _AppStarted() when appStarted != null:
 return appStarted(_that);case _SignUpRequested() when signUpRequested != null:
 return signUpRequested(_that);case _SignInRequested() when signInRequested != null:
 return signInRequested(_that);case _SignOutRequested() when signOutRequested != null:
-return signOutRequested(_that);case _:
+return signOutRequested(_that);case _ProfileUpdated() when profileUpdated != null:
+return profileUpdated(_that);case _:
   return null;
 
 }
@@ -125,13 +128,14 @@ return signOutRequested(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  appStarted,TResult Function( String email,  String password,  String firstName,  String lastName,  UserRole role,  String? businessName)?  signUpRequested,TResult Function( String email,  String password)?  signInRequested,TResult Function()?  signOutRequested,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  appStarted,TResult Function( String email,  String password,  String firstName,  String lastName,  UserRole role,  String? businessName)?  signUpRequested,TResult Function( String email,  String password)?  signInRequested,TResult Function()?  signOutRequested,TResult Function( UserModel user)?  profileUpdated,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppStarted() when appStarted != null:
 return appStarted();case _SignUpRequested() when signUpRequested != null:
 return signUpRequested(_that.email,_that.password,_that.firstName,_that.lastName,_that.role,_that.businessName);case _SignInRequested() when signInRequested != null:
 return signInRequested(_that.email,_that.password);case _SignOutRequested() when signOutRequested != null:
-return signOutRequested();case _:
+return signOutRequested();case _ProfileUpdated() when profileUpdated != null:
+return profileUpdated(_that.user);case _:
   return orElse();
 
 }
@@ -149,13 +153,14 @@ return signOutRequested();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  appStarted,required TResult Function( String email,  String password,  String firstName,  String lastName,  UserRole role,  String? businessName)  signUpRequested,required TResult Function( String email,  String password)  signInRequested,required TResult Function()  signOutRequested,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  appStarted,required TResult Function( String email,  String password,  String firstName,  String lastName,  UserRole role,  String? businessName)  signUpRequested,required TResult Function( String email,  String password)  signInRequested,required TResult Function()  signOutRequested,required TResult Function( UserModel user)  profileUpdated,}) {final _that = this;
 switch (_that) {
 case _AppStarted():
 return appStarted();case _SignUpRequested():
 return signUpRequested(_that.email,_that.password,_that.firstName,_that.lastName,_that.role,_that.businessName);case _SignInRequested():
 return signInRequested(_that.email,_that.password);case _SignOutRequested():
-return signOutRequested();}
+return signOutRequested();case _ProfileUpdated():
+return profileUpdated(_that.user);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -169,13 +174,14 @@ return signOutRequested();}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  appStarted,TResult? Function( String email,  String password,  String firstName,  String lastName,  UserRole role,  String? businessName)?  signUpRequested,TResult? Function( String email,  String password)?  signInRequested,TResult? Function()?  signOutRequested,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  appStarted,TResult? Function( String email,  String password,  String firstName,  String lastName,  UserRole role,  String? businessName)?  signUpRequested,TResult? Function( String email,  String password)?  signInRequested,TResult? Function()?  signOutRequested,TResult? Function( UserModel user)?  profileUpdated,}) {final _that = this;
 switch (_that) {
 case _AppStarted() when appStarted != null:
 return appStarted();case _SignUpRequested() when signUpRequested != null:
 return signUpRequested(_that.email,_that.password,_that.firstName,_that.lastName,_that.role,_that.businessName);case _SignInRequested() when signInRequested != null:
 return signInRequested(_that.email,_that.password);case _SignOutRequested() when signOutRequested != null:
-return signOutRequested();case _:
+return signOutRequested();case _ProfileUpdated() when profileUpdated != null:
+return profileUpdated(_that.user);case _:
   return null;
 
 }
@@ -390,6 +396,81 @@ String toString() {
 
 
 
+
+/// @nodoc
+
+
+class _ProfileUpdated implements AuthEvent {
+  const _ProfileUpdated(this.user);
+  
+
+ final  UserModel user;
+
+/// Create a copy of AuthEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ProfileUpdatedCopyWith<_ProfileUpdated> get copyWith => __$ProfileUpdatedCopyWithImpl<_ProfileUpdated>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ProfileUpdated&&(identical(other.user, user) || other.user == user));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,user);
+
+@override
+String toString() {
+  return 'AuthEvent.profileUpdated(user: $user)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ProfileUpdatedCopyWith<$Res> implements $AuthEventCopyWith<$Res> {
+  factory _$ProfileUpdatedCopyWith(_ProfileUpdated value, $Res Function(_ProfileUpdated) _then) = __$ProfileUpdatedCopyWithImpl;
+@useResult
+$Res call({
+ UserModel user
+});
+
+
+$UserModelCopyWith<$Res> get user;
+
+}
+/// @nodoc
+class __$ProfileUpdatedCopyWithImpl<$Res>
+    implements _$ProfileUpdatedCopyWith<$Res> {
+  __$ProfileUpdatedCopyWithImpl(this._self, this._then);
+
+  final _ProfileUpdated _self;
+  final $Res Function(_ProfileUpdated) _then;
+
+/// Create a copy of AuthEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? user = null,}) {
+  return _then(_ProfileUpdated(
+null == user ? _self.user : user // ignore: cast_nullable_to_non_nullable
+as UserModel,
+  ));
+}
+
+/// Create a copy of AuthEvent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UserModelCopyWith<$Res> get user {
+  
+  return $UserModelCopyWith<$Res>(_self.user, (value) {
+    return _then(_self.copyWith(user: value));
+  });
+}
+}
 
 /// @nodoc
 mixin _$AuthState {

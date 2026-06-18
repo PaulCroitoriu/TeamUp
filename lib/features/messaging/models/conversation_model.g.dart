@@ -12,6 +12,7 @@ _ConversationModel _$ConversationModelFromJson(Map<String, dynamic> json) =>
       kind: $enumDecode(_$ConversationKindEnumMap, json['kind']),
       bookingId: json['bookingId'] as String?,
       gameId: json['gameId'] as String?,
+      title: json['title'] as String?,
       participantIds:
           (json['participantIds'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -19,7 +20,9 @@ _ConversationModel _$ConversationModelFromJson(Map<String, dynamic> json) =>
           const [],
       lastMessageText: json['lastMessageText'] as String?,
       lastMessageSenderId: json['lastMessageSenderId'] as String?,
-      lastMessageAt: const TimestampConverter().fromJson(json['lastMessageAt']),
+      lastMessageAt: const NullableTimestampConverter().fromJson(
+        json['lastMessageAt'],
+      ),
       createdAt: const TimestampConverter().fromJson(json['createdAt']),
     );
 
@@ -29,12 +32,12 @@ Map<String, dynamic> _$ConversationModelToJson(_ConversationModel instance) =>
       'kind': _$ConversationKindEnumMap[instance.kind]!,
       'bookingId': instance.bookingId,
       'gameId': instance.gameId,
+      'title': instance.title,
       'participantIds': instance.participantIds,
       'lastMessageText': instance.lastMessageText,
       'lastMessageSenderId': instance.lastMessageSenderId,
-      'lastMessageAt': _$JsonConverterToJson<dynamic, DateTime>(
+      'lastMessageAt': const NullableTimestampConverter().toJson(
         instance.lastMessageAt,
-        const TimestampConverter().toJson,
       ),
       'createdAt': const TimestampConverter().toJson(instance.createdAt),
     };
@@ -44,8 +47,3 @@ const _$ConversationKindEnumMap = {
   ConversationKind.direct: 'direct',
   ConversationKind.game: 'game',
 };
-
-Json? _$JsonConverterToJson<Json, Value>(
-  Value? value,
-  Json? Function(Value value) toJson,
-) => value == null ? null : toJson(value);

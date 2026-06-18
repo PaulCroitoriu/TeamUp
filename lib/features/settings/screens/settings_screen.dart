@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
 import 'package:teamup/core/theme/theme_cubit.dart';
+import 'package:teamup/shared/widgets/page_header.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
+import 'package:teamup/features/auth/data/auth_service.dart';
+import 'package:teamup/features/auth/models/user_model.dart';
 import 'package:teamup/features/settings/screens/profile_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -12,131 +16,159 @@ class SettingsScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final isWide = MediaQuery.sizeOf(context).width >= 600;
+    final businessId = context.select<AuthBloc, String?>(
+      (b) => b.state.maybeMap(
+        authenticated: (s) => s.user.role == UserRole.business ? s.user.businessId : null,
+        orElse: () => null,
+      ),
+    );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: ListView(
-            padding: EdgeInsets.symmetric(
-              horizontal: isWide ? 32 : 16,
-              vertical: 24,
-            ),
-            children: [
-              // ── Account section ──
-              _SectionHeader(label: 'Account'),
-              const SizedBox(height: 8),
-              _SettingsTile(
-                icon: Icons.person_outline_rounded,
-                title: 'Profile',
-                subtitle: 'Name, email, photo',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                ),
-              ),
-              const Divider(height: 1, indent: 56),
-
-              // ── Appearance section ──
-              const SizedBox(height: 28),
-              _SectionHeader(label: 'Appearance'),
-              const SizedBox(height: 8),
-              BlocBuilder<ThemeCubit, ThemeMode>(
-                builder: (context, mode) {
-                  return _SettingsTile(
-                    icon: mode == ThemeMode.dark
-                        ? Icons.dark_mode_rounded
-                        : Icons.light_mode_rounded,
-                    title: 'Dark mode',
-                    trailing: Switch.adaptive(
-                      value: mode == ThemeMode.dark,
-                      activeTrackColor: colors.secondary,
-                      onChanged: (_) =>
-                          context.read<ThemeCubit>().toggle(),
+      backgroundColor: TUColors.bg,
+      body: SafeArea(
+        bottom: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+            child: Column(
+          children: [
+            const PageHeader(title: 'Settings'),
+            Expanded(
+              child: ListView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isWide ? 32 : 16,
+                      vertical: 24,
                     ),
-                  );
-                },
-              ),
-              const Divider(height: 1, indent: 56),
-              _SettingsTile(
-                icon: Icons.translate_rounded,
-                title: 'Language',
-                subtitle: 'English',
-                onTap: () {
-                  // TODO: language picker
-                },
-              ),
-
-              // ── Support section ──
-              const SizedBox(height: 28),
-              _SectionHeader(label: 'Support'),
-              const SizedBox(height: 8),
-              _SettingsTile(
-                icon: Icons.help_outline_rounded,
-                title: 'Help & FAQ',
-                onTap: () {
-                  // TODO: help screen
-                },
-              ),
-              const Divider(height: 1, indent: 56),
-              _SettingsTile(
-                icon: Icons.description_outlined,
-                title: 'Terms & Privacy',
-                onTap: () {
-                  // TODO: legal screen
-                },
-              ),
-
-              // ── Sign out ──
-              const SizedBox(height: 28),
-              _SectionHeader(label: ''),
-              _SettingsTile(
-                icon: Icons.logout_rounded,
-                title: 'Sign out',
-                destructive: true,
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Sign out?'),
-                      content:
-                          const Text('You can always sign back in later.'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(),
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(ctx).pop();
-                            context
-                                .read<AuthBloc>()
-                                .add(const AuthEvent.signOutRequested());
-                          },
-                          child: Text(
-                            'Sign out',
-                            style: TextStyle(color: colors.error),
+                    children: [
+                      // ── Account section ──
+                      _SectionHeader(label: 'Account'),
+                      const SizedBox(height: 8),
+                      _SettingsTile(
+                        icon: Icons.person_outline_rounded,
+                        title: 'Profile',
+                        subtitle: 'Name, email, photo',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ProfileScreen(),
                           ),
                         ),
+                      ),
+                      const Divider(height: 1, indent: 56),
+
+                      // ── Business section (owners only) ──
+                      if (businessId != null) ...[
+                        const SizedBox(height: 28),
+                        _SectionHeader(label: 'Business'),
+                        const SizedBox(height: 8),
+                        _AutoConfirmTile(businessId: businessId),
+                        const Divider(height: 1, indent: 56),
                       ],
-                    ),
-                  );
-                },
-              ),
 
-              const SizedBox(height: 32),
+                      // ── Appearance section ──
+                      const SizedBox(height: 28),
+                      _SectionHeader(label: 'Appearance'),
+                      const SizedBox(height: 8),
+                      BlocBuilder<ThemeCubit, ThemeMode>(
+                        builder: (context, mode) {
+                          return _SettingsTile(
+                            icon: mode == ThemeMode.dark
+                                ? Icons.dark_mode_rounded
+                                : Icons.light_mode_rounded,
+                            title: 'Dark mode',
+                            trailing: Switch.adaptive(
+                              value: mode == ThemeMode.dark,
+                              activeTrackColor: colors.secondary,
+                              onChanged: (_) =>
+                                  context.read<ThemeCubit>().toggle(),
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1, indent: 56),
+                      _SettingsTile(
+                        icon: Icons.translate_rounded,
+                        title: 'Language',
+                        subtitle: 'English',
+                        onTap: () {
+                          // TODO: language picker
+                        },
+                      ),
 
-              // ── App version ──
-              Center(
-                child: Text(
-                  'TeamUp v1.0.0',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurface.withAlpha(102),
+                      // ── Support section ──
+                      const SizedBox(height: 28),
+                      _SectionHeader(label: 'Support'),
+                      const SizedBox(height: 8),
+                      _SettingsTile(
+                        icon: Icons.help_outline_rounded,
+                        title: 'Help & FAQ',
+                        onTap: () {
+                          // TODO: help screen
+                        },
+                      ),
+                      const Divider(height: 1, indent: 56),
+                      _SettingsTile(
+                        icon: Icons.description_outlined,
+                        title: 'Terms & Privacy',
+                        onTap: () {
+                          // TODO: legal screen
+                        },
+                      ),
+
+                      // ── Sign out ──
+                      const SizedBox(height: 28),
+                      _SectionHeader(label: ''),
+                      _SettingsTile(
+                        icon: Icons.logout_rounded,
+                        title: 'Sign out',
+                        destructive: true,
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Sign out?'),
+                              content: const Text(
+                                'You can always sign back in later.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(ctx).pop();
+                                    context.read<AuthBloc>().add(
+                                      const AuthEvent.signOutRequested(),
+                                    );
+                                  },
+                                  child: Text(
+                                    'Sign out',
+                                    style: TextStyle(color: colors.error),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // ── App version ──
+                      Center(
+                        child: Text(
+                          'TeamUp v1.0.0',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurface.withAlpha(102),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+            ),
+          ],
+            ),
           ),
         ),
       ),
@@ -158,11 +190,65 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         label.toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withAlpha(128),
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-            ),
+          color: Theme.of(context).colorScheme.onSurface.withAlpha(128),
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+        ),
       ),
+    );
+  }
+}
+
+// ─── Auto-confirm bookings toggle (owners) ──────────────────
+
+class _AutoConfirmTile extends StatefulWidget {
+  const _AutoConfirmTile({required this.businessId});
+  final String businessId;
+
+  @override
+  State<_AutoConfirmTile> createState() => _AutoConfirmTileState();
+}
+
+class _AutoConfirmTileState extends State<_AutoConfirmTile> {
+  final _auth = AuthService();
+  bool? _value;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _auth.getBusiness(widget.businessId).then((b) {
+      if (mounted) setState(() => _value = b.autoConfirmBookings);
+    }).catchError((_) {
+      if (mounted) setState(() => _value = true);
+    });
+  }
+
+  Future<void> _toggle(bool v) async {
+    setState(() {
+      _value = v;
+      _busy = true;
+    });
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _auth.setAutoConfirmBookings(widget.businessId, v);
+    } catch (e) {
+      if (mounted) setState(() => _value = !v);
+      messenger.showSnackBar(SnackBar(content: Text('Could not update: $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsTile(
+      icon: Icons.task_alt_rounded,
+      title: 'Auto-confirm bookings',
+      subtitle: (_value ?? true) ? 'Bookings confirm automatically' : 'You review and confirm each booking',
+      trailing: _value == null
+          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+          : Switch.adaptive(value: _value!, onChanged: _busy ? null : _toggle),
     );
   }
 }
@@ -195,10 +281,7 @@ class _SettingsTile extends StatelessWidget {
       leading: Icon(icon, color: fg.withAlpha(destructive ? 255 : 179)),
       title: Text(
         title,
-        style: TextStyle(
-          fontWeight: FontWeight.w500,
-          color: fg,
-        ),
+        style: TextStyle(fontWeight: FontWeight.w500, color: fg),
       ),
       subtitle: subtitle != null
           ? Text(
@@ -209,10 +292,13 @@ class _SettingsTile extends StatelessWidget {
               ),
             )
           : null,
-      trailing: trailing ??
+      trailing:
+          trailing ??
           (onTap != null
-              ? Icon(Icons.chevron_right_rounded,
-                  color: colors.onSurface.withAlpha(77))
+              ? Icon(
+                  Icons.chevron_right_rounded,
+                  color: colors.onSurface.withAlpha(77),
+                )
               : null),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onTap: onTap,

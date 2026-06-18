@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
 
 class AppTheme {
   AppTheme._();
 
-  // ─── Jira / Atlassian Design System palette ────────────────
-  // Light
-  static const _lightScaffold = Color(0xFFF7F8F9); // N20 sunken
-  static const _lightSurface = Color(0xFFFFFFFF); // N0 raised
-  static const _lightSelected = Color(0xFFDCFCEC); // G50 selected tint
-  static const _lightBorder = Color(0xFFDFE1E6); // N40
-  static const _lightBorderStrong = Color(0xFFC1C7D0); // N60
-  static const _lightText = Color(0xFF172B4D); // N800 primary text
-  static const _lightTextSubtle = Color(0xFF44546F); // N500
-  static const _lightPlaceholder = Color(0xFF8993A4); // N200
-  static const _lightIcon = Color(0xFF44546F); // N500
+  // ─── Light palette: mirrors TUColors so colorScheme-based screens (owner
+  // Dashboard/Venues/Bookings) match the TUColors-based screens exactly. ──
+  static const _lightScaffold = TUColors.bg;
+  static const _lightSurface = TUColors.surface;
+  static const _lightSelected = TUColors.brandSoft;
+  static const _lightBorder = TUColors.line;
+  static const _lightBorderStrong = TUColors.line2;
+  static const _lightText = TUColors.ink;
+  static const _lightTextSubtle = TUColors.ink2;
+  static const _lightPlaceholder = TUColors.ink3;
+  static const _lightIcon = TUColors.ink2;
 
   // Dark
   static const _darkScaffold = Color(0xFF1D2125); // DN20 body
@@ -27,8 +28,8 @@ class AppTheme {
   static const _darkPlaceholder = Color(0xFF7D8691); // DN500
   static const _darkIcon = Color(0xFF9FADBC); // DN700
 
-  // Brand (greenish)
-  static const _brand = Color(0xFF1F845A); // G500 primary
+  // Brand (greenish) — light brand mirrors TUColors.brand.
+  static const _brand = TUColors.brand; // #0F8A4D
   static const _brandDark = Color(0xFF7EE2B8); // G300 dark-mode brand
   static const _success = Color(0xFF22A06B); // G400 — slightly brighter than brand
   static const _successDark = Color(0xFF94F0CB); // G200

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'package:teamup/core/enums/notification_type.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
 import 'package:teamup/features/bookings/screens/booking_detail_screen.dart';
+import 'package:teamup/features/games/data/game_service.dart';
 import 'package:teamup/features/notifications/data/notification_service.dart';
 import 'package:teamup/features/notifications/models/notification_model.dart';
 
@@ -42,6 +44,8 @@ class _NotificationToastListenerState extends State<NotificationToastListener> {
   late final DateTime _sessionStart;
   final Set<String> _shown = <String>{};
   StreamSubscription<List<NotificationModel>>? _sub;
+  OverlayEntry? _entry;
+  Timer? _dismissTimer;
 
   @override
   void initState() {
@@ -63,6 +67,7 @@ class _NotificationToastListenerState extends State<NotificationToastListener> {
   @override
   void dispose() {
     _sub?.cancel();
+    _dismiss();
     super.dispose();
   }
 
@@ -94,61 +99,140 @@ class _NotificationToastListenerState extends State<NotificationToastListener> {
     NotificationType.bookingConfirmed => Icons.check_circle_outline_rounded,
     NotificationType.bookingCancelled => Icons.cancel_outlined,
     NotificationType.newMessage => Icons.chat_bubble_outline_rounded,
+    NotificationType.joinRequest => Icons.person_add_alt_1_outlined,
+    NotificationType.joinApproved => Icons.how_to_reg_outlined,
+    NotificationType.joinDeclined => Icons.person_off_outlined,
   };
 
+  void _dismiss() {
+    _dismissTimer?.cancel();
+    _dismissTimer = null;
+    _entry?.remove();
+    _entry = null;
+  }
+
+  /// Resolve where a notification points (always the unified booking page) and
+  /// open it; game notifications carry a gameId we map to its booking.
+  Future<void> _open(NotificationModel n) async {
+    _dismiss();
+    final nav = Navigator.of(context);
+    try {
+      await NotificationService().markRead(n.id);
+    } catch (_) {}
+    String? bookingId = n.bookingId;
+    if (bookingId == null && n.gameId != null) {
+      try {
+        bookingId = (await GameService().streamGame(n.gameId!).first).bookingId;
+      } catch (_) {}
+    }
+    if (bookingId == null || !mounted) return;
+    nav.push(MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: bookingId!)));
+  }
+
   void _show(NotificationModel n) {
-    final colors = Theme.of(context).colorScheme;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.clearSnackBars();
-    messenger.showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(12),
-        backgroundColor: colors.surface,
-        elevation: 4,
-        duration: const Duration(seconds: 5),
-        content: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(color: colors.primary.withAlpha(24), shape: BoxShape.circle),
-              child: Icon(_iconFor(n.type), size: 18, color: colors.primary),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    n.title,
-                    style: TextStyle(color: colors.onSurface, fontSize: 13, fontWeight: FontWeight.w700),
-                  ),
-                  Text(
-                    n.body,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: colors.onSurface.withAlpha(180), fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ],
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return;
+    _dismiss();
+    final wide = MediaQuery.sizeOf(context).width >= 600;
+    final topInset = MediaQuery.paddingOf(context).top;
+
+    _entry = OverlayEntry(
+      builder: (_) => Positioned(
+        top: topInset + 10,
+        right: wide ? 16 : 12,
+        left: wide ? null : 12,
+        child: _ToastCard(
+          icon: _iconFor(n.type),
+          title: n.title,
+          body: n.body,
+          wide: wide,
+          onTap: () => _open(n),
+          onClose: _dismiss,
         ),
-        action: n.bookingId == null
-            ? null
-            : SnackBarAction(
-                label: 'Open',
-                textColor: colors.primary,
-                onPressed: () {
-                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: n.bookingId!)));
-                },
-              ),
       ),
     );
+    overlay.insert(_entry!);
+    _dismissTimer = Timer(const Duration(seconds: 5), _dismiss);
   }
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+/// Compact toast card — top-right on desktop, full-width banner on mobile.
+class _ToastCard extends StatelessWidget {
+  const _ToastCard({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.wide,
+    required this.onTap,
+    required this.onClose,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final bool wide;
+  final VoidCallback onTap;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = Material(
+      color: TUColors.surface,
+      borderRadius: BorderRadius.circular(TUColors.rMd),
+      elevation: 6,
+      shadowColor: Colors.black.withValues(alpha: .18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(TUColors.rMd),
+            border: Border.all(color: TUColors.line),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(color: TUColors.brandTint, shape: BoxShape.circle),
+                child: Icon(icon, size: 17, color: TUColors.brand700),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: TUColors.ink, fontSize: 13, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 1),
+                    Text(body, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: TUColors.ink2, fontSize: 12, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              ),
+              InkWell(
+                onTap: onClose,
+                customBorder: const CircleBorder(),
+                child: const Padding(padding: EdgeInsets.all(4), child: Icon(Icons.close_rounded, size: 16, color: TUColors.ink3)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      builder: (_, t, child) => Opacity(
+        opacity: t.clamp(0, 1),
+        child: Transform.translate(offset: Offset(0, (1 - t) * -12), child: child),
+      ),
+      child: wide ? SizedBox(width: 340, child: card) : card,
+    );
+  }
 }

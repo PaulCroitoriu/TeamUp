@@ -1,12 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:teamup/core/enums/booking_status.dart';
+import 'package:teamup/core/enums/game_status.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
+import 'package:teamup/core/theme/sport_tile.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
 import 'package:teamup/features/bookings/bloc/booking_bloc.dart';
 import 'package:teamup/features/bookings/data/booking_service.dart';
 import 'package:teamup/features/bookings/models/booking_model.dart';
-import 'package:teamup/features/bookings/screens/manage_bookings_screen.dart' show BookingCard;
-import 'package:teamup/features/notifications/screens/notifications_screen.dart';
+import 'package:teamup/features/bookings/screens/manage_bookings_screen.dart'
+    show BookingCard;
+import 'package:teamup/features/games/data/game_service.dart';
+import 'package:teamup/core/enums/join_request_status.dart';
+import 'package:teamup/features/games/models/game_model.dart';
+import 'package:teamup/features/games/models/join_request_model.dart';
+import 'package:teamup/features/bookings/screens/booking_detail_screen.dart';
+import 'package:teamup/core/enums/notification_type.dart';
+import 'package:teamup/features/notifications/data/notification_service.dart';
+import 'package:teamup/features/notifications/models/notification_model.dart';
+import 'package:teamup/shared/widgets/page_header.dart';
 
 class MyGamesScreen extends StatelessWidget {
   const MyGamesScreen({super.key});
@@ -15,15 +27,22 @@ class MyGamesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
-        final userId = authState.maybeMap(authenticated: (s) => s.user.uid, orElse: () => null);
+        final userId = authState.maybeMap(
+          authenticated: (s) => s.user.uid,
+          orElse: () => null,
+        );
 
         if (userId == null) {
-          return const Scaffold(body: Center(child: Text('Sign in to see your games')));
+          return const Scaffold(
+            body: Center(child: Text('Sign in to see your games')),
+          );
         }
 
         return BlocProvider(
-          create: (_) => BookingBloc(bookingService: BookingService())..add(BookingEvent.loadUserBookings(userId)),
-          child: const _MyGamesBody(),
+          create: (_) =>
+              BookingBloc(bookingService: BookingService())
+                ..add(BookingEvent.loadUserBookings(userId)),
+          child: _MyGamesBody(userId: userId),
         );
       },
     );
@@ -31,33 +50,117 @@ class MyGamesScreen extends StatelessWidget {
 }
 
 class _MyGamesBody extends StatelessWidget {
-  const _MyGamesBody();
+  const _MyGamesBody({required this.userId});
+  final String userId;
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('My Games'),
-          actions: const [NotificationsBell(), SizedBox(width: 4)],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Upcoming'),
-              Tab(text: 'Past'),
+        backgroundColor: TUColors.bg,
+        body: SafeArea(
+          bottom: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: TUColors.pageMaxWidth),
+              child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const PageHeader(title: 'My Games'),
+              const TabBar(
+                tabs: [
+                  Tab(text: 'Upcoming'),
+                  Tab(text: 'Past'),
+                ],
+              ),
+              Expanded(
+                child: SelectionArea(
+                  // Bookings (BookingBloc) + games the user is in (joined or
+                  // hosting) are merged into the tabs.
+                  child: StreamBuilder<List<GameModel>>(
+                    stream: GameService().streamUserGames(userId),
+                    builder: (context, gameSnap) {
+                      if (gameSnap.hasError) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              'Games failed to load: ${gameSnap.error}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: TUColors.ink2),
+                            ),
+                          ),
+                        );
+                      }
+                      final joined = gameSnap.data ?? const <GameModel>[];
+                      return StreamBuilder<List<JoinRequestModel>>(
+                        stream: GameService().streamMyRequests(userId),
+                        builder: (context, reqSnap) {
+                          final reqs =
+                              reqSnap.data ?? const <JoinRequestModel>[];
+                          final active = reqs
+                              .where(
+                                (r) =>
+                                    (r.status == JoinRequestStatus.pending ||
+                                        r.status ==
+                                            JoinRequestStatus.approved) &&
+                                    !joined.any((g) => g.id == r.gameId),
+                              )
+                              .toList();
+                          final statusByGame = {
+                            for (final r in active) r.gameId: r.status,
+                          };
+                          return StreamBuilder<List<GameModel>>(
+                            stream: GameService().streamGamesByIds(
+                              active.map((r) => r.gameId).toList(),
+                            ),
+                            builder: (context, rgSnap) {
+                              final requestGames =
+                                  (rgSnap.data ?? const <GameModel>[])
+                                      .map((g) => (g, statusByGame[g.id]!))
+                                      .toList();
+                              return StreamBuilder<List<NotificationModel>>(
+                                stream: NotificationService().streamForUser(userId),
+                                builder: (context, notifSnap) {
+                                  // Games the host has unread join requests on —
+                                  // i.e. that need the host to approve/decline.
+                                  final actionGameIds = {
+                                    for (final n in (notifSnap.data ?? const <NotificationModel>[]))
+                                      if (!n.read && n.type == NotificationType.joinRequest && n.gameId != null) n.gameId!,
+                                  };
+                                  return BlocBuilder<BookingBloc, BookingState>(
+                                    builder: (context, state) {
+                                      return state.maybeMap(
+                                        loading: (_) => const Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                        loaded: (s) => _Tabs(
+                                          bookings: s.bookings,
+                                          games: joined,
+                                          requestGames: requestGames,
+                                          userId: userId,
+                                          actionGameIds: actionGameIds,
+                                        ),
+                                        error: (e) =>
+                                            Center(child: Text(e.message)),
+                                        orElse: () => const SizedBox.shrink(),
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
             ],
-          ),
-        ),
-        body: SelectionArea(
-          child: BlocBuilder<BookingBloc, BookingState>(
-            builder: (context, state) {
-              return state.maybeMap(
-                loading: (_) => const Center(child: CircularProgressIndicator()),
-                loaded: (s) => _Tabs(bookings: s.bookings),
-                error: (e) => Center(child: Text(e.message)),
-                orElse: () => const SizedBox.shrink(),
-              );
-            },
+              ),
+            ),
           ),
         ),
       ),
@@ -66,29 +169,93 @@ class _MyGamesBody extends StatelessWidget {
 }
 
 class _Tabs extends StatelessWidget {
-  const _Tabs({required this.bookings});
+  const _Tabs({
+    required this.bookings,
+    required this.games,
+    required this.requestGames,
+    required this.userId,
+    required this.actionGameIds,
+  });
   final List<BookingModel> bookings;
+  final List<GameModel> games;
+  final List<(GameModel, JoinRequestStatus)> requestGames;
+  final String userId;
+  final Set<String> actionGameIds;
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final upcoming = bookings.where((b) => b.status != BookingStatus.cancelled && b.endTime.isAfter(now)).toList()
-      ..sort((a, b) => a.startTime.compareTo(b.startTime));
-    final past = bookings.where((b) => b.status == BookingStatus.cancelled || !b.endTime.isAfter(now)).toList()
-      ..sort((a, b) => b.startTime.compareTo(a.startTime));
+
+    // Bookings tied to a game are shown as the game row instead (avoids
+    // duplicating a hosted open game's booking).
+    final plainBookings = bookings.where((b) => b.gameId == null).toList();
+
+    List<Widget> upcoming() {
+      final items = <(DateTime, Widget)>[
+        for (final b in plainBookings)
+          if (b.status != BookingStatus.cancelled && b.endTime.isAfter(now))
+            (b.startTime, BookingCard(booking: b)),
+        for (final g in games)
+          if (g.status != GameStatus.cancelled && g.endTime.isAfter(now))
+            (g.startTime, _GameCard(game: g, userId: userId, actionNeeded: actionGameIds.contains(g.id))),
+        for (final (g, st) in requestGames)
+          if (g.status != GameStatus.cancelled && g.endTime.isAfter(now))
+            (
+              g.startTime,
+              _GameCard(
+                game: g,
+                userId: userId,
+                requestStatus: st,
+                // Player must confirm an approved request.
+                actionNeeded: st == JoinRequestStatus.approved || actionGameIds.contains(g.id),
+              ),
+            ),
+      ]..sort((a, b) => a.$1.compareTo(b.$1));
+      return [for (final e in items) e.$2];
+    }
+
+    List<Widget> past() {
+      final items = <(DateTime, Widget)>[
+        for (final b in plainBookings)
+          if (b.status == BookingStatus.cancelled || !b.endTime.isAfter(now))
+            (b.startTime, BookingCard(booking: b)),
+        for (final g in games)
+          if (!g.endTime.isAfter(now))
+            (g.startTime, _GameCard(game: g, userId: userId)),
+        for (final (g, st) in requestGames)
+          if (!g.endTime.isAfter(now))
+            (
+              g.startTime,
+              _GameCard(game: g, userId: userId, requestStatus: st),
+            ),
+      ]..sort((a, b) => b.$1.compareTo(a.$1));
+      return [for (final e in items) e.$2];
+    }
 
     return TabBarView(
       children: [
-        _BookingsList(bookings: upcoming, emptyTitle: 'No upcoming games', emptySubtitle: 'Book a pitch from Explore to get started'),
-        _BookingsList(bookings: past, emptyTitle: 'No past games yet', emptySubtitle: 'Your history will show up here'),
+        _ItemsList(
+          items: upcoming(),
+          emptyTitle: 'No upcoming games',
+          emptySubtitle: 'Book a pitch or join an open game from Explore',
+        ),
+        _ItemsList(
+          items: past(),
+          emptyTitle: 'No past games yet',
+          emptySubtitle: 'Your history will show up here',
+        ),
       ],
     );
   }
 }
 
-class _BookingsList extends StatelessWidget {
-  const _BookingsList({required this.bookings, required this.emptyTitle, required this.emptySubtitle});
-  final List<BookingModel> bookings;
+class _ItemsList extends StatelessWidget {
+  const _ItemsList({
+    required this.items,
+    required this.emptyTitle,
+    required this.emptySubtitle,
+  });
+  final List<Widget> items;
   final String emptyTitle;
   final String emptySubtitle;
 
@@ -97,21 +264,32 @@ class _BookingsList extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    if (bookings.isEmpty) {
+    if (items.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.sports_soccer_outlined, size: 48, color: colors.onSurface.withAlpha(60)),
+              Icon(
+                Icons.sports_soccer_outlined,
+                size: 48,
+                color: colors.onSurface.withAlpha(60),
+              ),
               const SizedBox(height: 16),
-              Text(emptyTitle, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              Text(
+                emptyTitle,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 emptySubtitle,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface.withAlpha(140)),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurface.withAlpha(140),
+                ),
               ),
             ],
           ),
@@ -121,9 +299,263 @@ class _BookingsList extends StatelessWidget {
 
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      itemCount: bookings.length,
+      itemCount: items.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, i) => BookingCard(booking: bookings[i]),
+      itemBuilder: (_, i) => items[i],
+    );
+  }
+}
+
+/// A row for an open game the user is hosting or has joined.
+class _GameCard extends StatelessWidget {
+  const _GameCard({
+    required this.game,
+    required this.userId,
+    this.requestStatus,
+    this.actionNeeded = false,
+  });
+  final GameModel game;
+  final String userId;
+  final JoinRequestStatus? requestStatus;
+  final bool actionNeeded;
+
+  static const _amber = Color(0xFFC9881A);
+
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  String _time(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final isHost = game.hostId == userId;
+    final full = game.spotsOpen <= 0 || game.status != GameStatus.open;
+    final now = DateTime.now();
+    final isLive = !game.startTime.isAfter(now) && game.endTime.isAfter(now);
+    final start = game.startTime;
+
+    return Material(
+      color: TUColors.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: game.bookingId == null
+            ? null
+            : () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: game.bookingId!)),
+              ),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            color: actionNeeded ? _amber.withAlpha(12) : null,
+            border: Border.all(
+              color: actionNeeded
+                  ? _amber.withAlpha(170)
+                  : isLive
+                  ? TUColors.brand
+                  : TUColors.line,
+              width: actionNeeded || isLive ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // date block
+              Container(
+                width: 48,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: TUColors.brandTint,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _weekdays[start.weekday - 1].toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: TUColors.brand700,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    Text(
+                      '${start.day}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: TUColors.ink,
+                      ),
+                    ),
+                    Text(
+                      _months[start.month - 1],
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: TUColors.ink3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${_time(start)} – ${_time(game.endTime)}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                              color: TUColors.ink,
+                            ),
+                          ),
+                        ),
+                        if (actionNeeded) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: _amber, borderRadius: BorderRadius.circular(999)),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.flag_rounded, size: 12, color: Colors.white),
+                                SizedBox(width: 4),
+                                Text('Action', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        if (requestStatus == JoinRequestStatus.pending)
+                          const _Pill(
+                            label: 'Requested',
+                            bg: TUColors.busyBg,
+                            fg: TUColors.ink2,
+                          )
+                        else if (requestStatus == JoinRequestStatus.approved)
+                          const _Pill(
+                            label: 'Approved · pay',
+                            bg: TUColors.brandSoft,
+                            fg: TUColors.brand700,
+                          )
+                        else ...[
+                          if (isHost) ...[
+                            const _Pill(
+                              label: 'Host',
+                              bg: TUColors.brandSoft,
+                              fg: TUColors.brand700,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          if (game.status == GameStatus.private)
+                            const _Pill(
+                              label: 'Private',
+                              bg: TUColors.surface2,
+                              fg: TUColors.ink2,
+                            )
+                          else if (full)
+                            const _Pill(
+                              label: 'Full',
+                              bg: TUColors.busyBg,
+                              fg: TUColors.ink3,
+                            )
+                          else
+                            const _Pill(
+                              label: 'Open',
+                              bg: TUColors.lime,
+                              fg: TUColors.brand900,
+                            ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        SportGlyph(
+                          sport: game.sport,
+                          size: 16,
+                          color: game.sport.color,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          game.sport.label,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: TUColors.ink2,
+                          ),
+                        ),
+                        const Text(
+                          '  ·  ',
+                          style: TextStyle(color: TUColors.ink3),
+                        ),
+                        Flexible(
+                          child: Text(
+                            full
+                                ? '${game.spotsFilled}/${game.capacity} players'
+                                : '${game.spotsFilled}/${game.capacity} · needs ${game.spotsOpen} more',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: TUColors.brand700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.bg, required this.fg});
+  final String label;
+  final Color bg;
+  final Color fg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(TUColors.rPill),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: fg),
+      ),
     );
   }
 }

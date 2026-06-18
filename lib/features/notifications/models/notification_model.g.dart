@@ -15,6 +15,7 @@ _NotificationModel _$NotificationModelFromJson(Map<String, dynamic> json) =>
       body: json['body'] as String,
       bookingId: json['bookingId'] as String?,
       conversationId: json['conversationId'] as String?,
+      gameId: json['gameId'] as String?,
       read: json['read'] as bool? ?? false,
       createdAt: const TimestampConverter().fromJson(json['createdAt']),
     );
@@ -28,6 +29,7 @@ Map<String, dynamic> _$NotificationModelToJson(_NotificationModel instance) =>
       'body': instance.body,
       'bookingId': instance.bookingId,
       'conversationId': instance.conversationId,
+      'gameId': instance.gameId,
       'read': instance.read,
       'createdAt': const TimestampConverter().toJson(instance.createdAt),
     };
@@ -37,4 +39,7 @@ const _$NotificationTypeEnumMap = {
   NotificationType.bookingConfirmed: 'bookingConfirmed',
   NotificationType.bookingCancelled: 'bookingCancelled',
   NotificationType.newMessage: 'newMessage',
+  NotificationType.joinRequest: 'joinRequest',
+  NotificationType.joinApproved: 'joinApproved',
+  NotificationType.joinDeclined: 'joinDeclined',
 };

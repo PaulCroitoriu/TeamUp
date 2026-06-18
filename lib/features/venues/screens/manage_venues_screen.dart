@@ -5,13 +5,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import 'package:teamup/core/enums/sport.dart';
 import 'package:teamup/features/auth/bloc/auth_bloc.dart';
-import 'package:teamup/features/notifications/screens/notifications_screen.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
+import 'package:teamup/core/theme/sport_tile.dart';
+import 'package:teamup/shared/widgets/page_header.dart';
 import 'package:teamup/features/venues/bloc/venue_bloc.dart';
 import 'package:teamup/features/venues/data/venue_service.dart';
 import 'package:teamup/features/venues/models/pitch_model.dart';
 import 'package:teamup/features/venues/models/venue_model.dart';
-import 'package:teamup/features/venues/screens/add_edit_pitch_screen.dart' show AddEditPitchDialog;
-import 'package:teamup/features/venues/screens/add_edit_venue_screen.dart' show AddEditVenueDialog;
+import 'package:teamup/features/venues/screens/add_edit_pitch_screen.dart'
+    show AddEditPitchDialog;
+import 'package:teamup/features/venues/screens/add_edit_venue_screen.dart'
+    show AddEditVenueDialog;
 
 final _log = Logger();
 
@@ -27,14 +31,21 @@ class ManageVenuesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
-        final businessId = authState.maybeMap(authenticated: (s) => s.user.businessId, orElse: () => null);
+        final businessId = authState.maybeMap(
+          authenticated: (s) => s.user.businessId,
+          orElse: () => null,
+        );
 
         if (businessId == null) {
-          return const Scaffold(body: Center(child: Text('No business linked to this account')));
+          return const Scaffold(
+            body: Center(child: Text('No business linked to this account')),
+          );
         }
 
         return BlocProvider(
-          create: (_) => VenueBloc(venueService: VenueService())..add(VenueEvent.loadBusinessVenues(businessId)),
+          create: (_) =>
+              VenueBloc(venueService: VenueService())
+                ..add(VenueEvent.loadBusinessVenues(businessId)),
           child: _VenuesShell(businessId: businessId),
         );
       },
@@ -62,39 +73,62 @@ class _VenuesShellState extends State<_VenuesShell> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Venues'), elevation: 0, scrolledUnderElevation: 0, actions: const [NotificationsBell(), SizedBox(width: 4)]),
-      body: SelectionArea(
-        child: BlocBuilder<VenueBloc, VenueState>(
-          builder: (context, state) {
-            return state.maybeMap(
-              loading: (_) => const Center(child: CircularProgressIndicator()),
-              loaded: (s) {
-                if (s.venues.isEmpty) {
-                  return _EmptyVenues(businessId: widget.businessId, bloc: context.read<VenueBloc>());
-                }
-                if (_selectedIndex >= s.venues.length) _selectedIndex = 0;
-                final venue = s.venues[_selectedIndex];
-                return _Body(
-                  venue: venue,
-                  venues: s.venues,
-                  selectedIndex: _selectedIndex,
-                  onVenueSelected: (i) => setState(() => _selectedIndex = i),
-                  businessId: widget.businessId,
-                  bloc: context.read<VenueBloc>(),
-                  pitchQuery: _pitchQuery,
-                  onPitchQuery: (q) => setState(() => _pitchQuery = q),
-                  pitchFilter: _pitchFilter,
-                  onPitchFilter: (f) => setState(() => _pitchFilter = f),
-                  selectedSports: _selectedSports,
-                  onSportsChanged: (s) => setState(() => _selectedSports = s),
-                );
-              },
-              error: (e) => Center(
-                child: Text(e.message, style: TextStyle(color: colors.error)),
+      backgroundColor: TUColors.bg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const PageHeader(title: 'Venues'),
+            Expanded(
+              child: SelectionArea(
+                child: BlocBuilder<VenueBloc, VenueState>(
+                  builder: (context, state) {
+                    return state.maybeMap(
+                      loading: (_) =>
+                          const Center(child: CircularProgressIndicator()),
+                      loaded: (s) {
+                        if (s.venues.isEmpty) {
+                          return _EmptyVenues(
+                            businessId: widget.businessId,
+                            bloc: context.read<VenueBloc>(),
+                          );
+                        }
+                        if (_selectedIndex >= s.venues.length) {
+                          _selectedIndex = 0;
+                        }
+                        final venue = s.venues[_selectedIndex];
+                        return _Body(
+                          venue: venue,
+                          venues: s.venues,
+                          selectedIndex: _selectedIndex,
+                          onVenueSelected: (i) =>
+                              setState(() => _selectedIndex = i),
+                          businessId: widget.businessId,
+                          bloc: context.read<VenueBloc>(),
+                          pitchQuery: _pitchQuery,
+                          onPitchQuery: (q) => setState(() => _pitchQuery = q),
+                          pitchFilter: _pitchFilter,
+                          onPitchFilter: (f) =>
+                              setState(() => _pitchFilter = f),
+                          selectedSports: _selectedSports,
+                          onSportsChanged: (s) =>
+                              setState(() => _selectedSports = s),
+                        );
+                      },
+                      error: (e) => Center(
+                        child: Text(
+                          e.message,
+                          style: TextStyle(color: colors.error),
+                        ),
+                      ),
+                      orElse: () => const SizedBox.shrink(),
+                    );
+                  },
+                ),
               ),
-              orElse: () => const SizedBox.shrink(),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
@@ -146,7 +180,11 @@ class _Body extends StatelessWidget {
       bloc: bloc,
     );
 
-    final detailsPanel = _DetailsPanel(venue: venue, businessId: businessId, bloc: bloc);
+    final detailsPanel = _DetailsPanel(
+      venue: venue,
+      businessId: businessId,
+      bloc: bloc,
+    );
     final pitchesPanel = _PitchesPanel(
       venue: venue,
       query: pitchQuery,
@@ -173,10 +211,17 @@ class _Body extends StatelessWidget {
                       flex: 4,
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.fromLTRB(40, 36, 32, 48),
-                        child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 540), child: detailsPanel),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 540),
+                          child: detailsPanel,
+                        ),
                       ),
                     ),
-                    VerticalDivider(width: 1, thickness: 1, color: colors.onSurface.withAlpha(20)),
+                    VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: colors.onSurface.withAlpha(20),
+                    ),
                     Expanded(flex: 6, child: pitchesPanel),
                   ],
                 ),
@@ -193,7 +238,8 @@ class _Body extends StatelessWidget {
         children: [
           venuePicker,
           Material(
-            color: Theme.of(context).appBarTheme.backgroundColor ?? colors.surface,
+            color:
+                Theme.of(context).appBarTheme.backgroundColor ?? colors.surface,
             child: TabBar(
               tabs: const [
                 Tab(text: 'Venue'),
@@ -207,7 +253,10 @@ class _Body extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 32), child: detailsPanel),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                  child: detailsPanel,
+                ),
                 pitchesPanel,
               ],
             ),
@@ -244,7 +293,12 @@ class _VenuePickerBar extends StatelessWidget {
     final isMobile = MediaQuery.sizeOf(context).width < _mobileBreakpoint;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(isMobile ? 20 : 40, 20, isMobile ? 16 : 32, 18),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 20 : 40,
+        20,
+        isMobile ? 16 : 32,
+        18,
+      ),
       child: Row(
         children: [
           // ── Left: storefront icon + picker. Wrapped in `Expanded` (not
@@ -259,11 +313,19 @@ class _VenuePickerBar extends StatelessWidget {
                 const SizedBox(width: 10),
                 Flexible(
                   child: venues.length > 1
-                      ? _VenueDropdown(venues: venues, selectedIndex: selectedIndex, onVenueSelected: onVenueSelected, isExpanded: isMobile)
+                      ? _VenueDropdown(
+                          venues: venues,
+                          selectedIndex: selectedIndex,
+                          onVenueSelected: onVenueSelected,
+                          isExpanded: isMobile,
+                        )
                       : Text(
                           venue.name,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                          ),
                         ),
                 ),
               ],
@@ -272,13 +334,22 @@ class _VenuePickerBar extends StatelessWidget {
           const SizedBox(width: 8),
           // ── Right: trailing actions, anchored to the end ──
           IconButton.outlined(
-            onPressed: () => AddEditVenueDialog.show(context, businessId: businessId, bloc: bloc, venue: venue),
+            onPressed: () => AddEditVenueDialog.show(
+              context,
+              businessId: businessId,
+              bloc: bloc,
+              venue: venue,
+            ),
             icon: const Icon(Icons.edit_outlined, size: 18),
             tooltip: 'Edit venue',
           ),
           const SizedBox(width: 6),
           IconButton.outlined(
-            onPressed: () => AddEditVenueDialog.show(context, businessId: businessId, bloc: bloc),
+            onPressed: () => AddEditVenueDialog.show(
+              context,
+              businessId: businessId,
+              bloc: bloc,
+            ),
             icon: const Icon(Icons.add_rounded, size: 18),
             tooltip: 'New venue',
           ),
@@ -289,7 +360,12 @@ class _VenuePickerBar extends StatelessWidget {
 }
 
 class _VenueDropdown extends StatelessWidget {
-  const _VenueDropdown({required this.venues, required this.selectedIndex, required this.onVenueSelected, required this.isExpanded});
+  const _VenueDropdown({
+    required this.venues,
+    required this.selectedIndex,
+    required this.onVenueSelected,
+    required this.isExpanded,
+  });
 
   final List<VenueModel> venues;
   final int selectedIndex;
@@ -305,8 +381,16 @@ class _VenueDropdown extends StatelessWidget {
         value: selectedIndex,
         isDense: true,
         isExpanded: isExpanded,
-        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2, color: colors.onSurface),
-        icon: Icon(Icons.keyboard_arrow_down_rounded, size: 22, color: colors.onSurface.withAlpha(150)),
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.2,
+          color: colors.onSurface,
+        ),
+        icon: Icon(
+          Icons.keyboard_arrow_down_rounded,
+          size: 22,
+          color: colors.onSurface.withAlpha(150),
+        ),
         items: [
           for (var i = 0; i < venues.length; i++)
             DropdownMenuItem(
@@ -342,22 +426,41 @@ class _EmptyVenues extends StatelessWidget {
             Container(
               width: 88,
               height: 88,
-              decoration: BoxDecoration(color: colors.primary.withAlpha(15), shape: BoxShape.circle),
-              child: Icon(Icons.storefront_rounded, size: 40, color: colors.primary.withAlpha(140)),
+              decoration: BoxDecoration(
+                color: colors.primary.withAlpha(15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.storefront_rounded,
+                size: 40,
+                color: colors.primary.withAlpha(140),
+              ),
             ),
             const SizedBox(height: 24),
-            Text('Set up your first venue', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'Set up your first venue',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
               'Add a venue to start adding pitches\nand receiving bookings.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface.withAlpha(150), height: 1.5),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurface.withAlpha(150),
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 24),
             SizedBox(
               width: 220,
               child: FilledButton.icon(
-                onPressed: () => AddEditVenueDialog.show(context, businessId: businessId, bloc: bloc),
+                onPressed: () => AddEditVenueDialog.show(
+                  context,
+                  businessId: businessId,
+                  bloc: bloc,
+                ),
                 icon: const Icon(Icons.add_rounded),
                 label: const Text('Add venue'),
               ),
@@ -372,7 +475,11 @@ class _EmptyVenues extends StatelessWidget {
 // ─── Details panel ──────────────────────────────────────────
 
 class _DetailsPanel extends StatelessWidget {
-  const _DetailsPanel({required this.venue, required this.businessId, required this.bloc});
+  const _DetailsPanel({
+    required this.venue,
+    required this.businessId,
+    required this.bloc,
+  });
 
   final VenueModel venue;
   final String businessId;
@@ -390,10 +497,19 @@ class _DetailsPanel extends StatelessWidget {
         const SizedBox(height: 18),
         Row(
           children: [
-            Icon(Icons.location_on_outlined, size: 16, color: colors.onSurface.withAlpha(150)),
+            Icon(
+              Icons.location_on_outlined,
+              size: 16,
+              color: colors.onSurface.withAlpha(150),
+            ),
             const SizedBox(width: 6),
             Expanded(
-              child: Text('${venue.address}, ${venue.city}', style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface.withAlpha(180))),
+              child: Text(
+                '${venue.address}, ${venue.city}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurface.withAlpha(180),
+                ),
+              ),
             ),
           ],
         ),
@@ -401,22 +517,41 @@ class _DetailsPanel extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             children: [
-              Icon(Icons.phone_outlined, size: 16, color: colors.onSurface.withAlpha(150)),
+              Icon(
+                Icons.phone_outlined,
+                size: 16,
+                color: colors.onSurface.withAlpha(150),
+              ),
               const SizedBox(width: 6),
-              Text(venue.phone!, style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface.withAlpha(180))),
+              Text(
+                venue.phone!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurface.withAlpha(180),
+                ),
+              ),
             ],
           ),
         ],
         if (venue.description != null) ...[
           const SizedBox(height: 14),
-          Text(venue.description!, style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface.withAlpha(180), height: 1.5)),
+          Text(
+            venue.description!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurface.withAlpha(180),
+              height: 1.5,
+            ),
+          ),
         ],
 
         if (venue.sports.isNotEmpty) ...[
           const SizedBox(height: 18),
           _SectionLabel('Sports offered'),
           const SizedBox(height: 8),
-          Wrap(spacing: 6, runSpacing: 6, children: [for (final s in venue.sports) _SportBadge(sport: s)]),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [for (final s in venue.sports) _SportBadge(sport: s)],
+          ),
         ],
 
         const SizedBox(height: 20),
@@ -428,34 +563,89 @@ class _DetailsPanel extends StatelessWidget {
   }
 }
 
+/// Photo-free, on-brand venue header: a pitch-green gradient with subtle
+/// decorative discs and a storefront glyph. Mirrors the illustrated tile
+/// language used across the app instead of a hero photo.
 class _Hero extends StatelessWidget {
   const _Hero({required this.venue});
   final VenueModel venue;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: venue.imageUrl != null
-            ? Image.network(venue.imageUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _fallback(colors))
-            : _fallback(colors),
+      borderRadius: BorderRadius.circular(TUColors.rLg),
+      child: SizedBox(
+        height: 150,
+        width: double.infinity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [TUColors.brand, TUColors.brand900],
+                ),
+              ),
+            ),
+            Positioned(right: -28, top: -28, child: _disc(130, .12)),
+            Positioned(right: 56, bottom: -56, child: _disc(120, .08)),
+            const Center(
+              child: Icon(Icons.storefront_rounded, size: 50, color: Colors.white),
+            ),
+            if (venue.sports.isNotEmpty)
+              Positioned(
+                left: 12,
+                bottom: 12,
+                right: 12,
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final s in venue.sports.take(4)) _HeroSportChip(sport: s),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _fallback(ColorScheme colors) {
-    return DecoratedBox(
+  Widget _disc(double size, double opacity) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: opacity),
+      shape: BoxShape.circle,
+    ),
+  );
+}
+
+class _HeroSportChip extends StatelessWidget {
+  const _HeroSportChip({required this.sport});
+  final Sport sport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.primary.withAlpha(40), colors.secondary.withAlpha(40)],
-        ),
+        color: Colors.white.withValues(alpha: .18),
+        borderRadius: BorderRadius.circular(TUColors.rPill),
       ),
-      child: Center(child: Icon(Icons.storefront_rounded, size: 40, color: colors.onSurface.withAlpha(120))),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SportGlyph(sport: sport, size: 12, color: Colors.white),
+          const SizedBox(width: 5),
+          Text(
+            sport.label,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -468,7 +658,12 @@ class _SectionLabel extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Text(
       text.toUpperCase(),
-      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: colors.onSurface.withAlpha(160), letterSpacing: 1.2),
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        color: colors.onSurface.withAlpha(160),
+        letterSpacing: 1.2,
+      ),
     );
   }
 }
@@ -478,18 +673,25 @@ class _SportBadge extends StatelessWidget {
   final Sport sport;
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final accent = sport.color;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: colors.secondary.withAlpha(20), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(
+        color: accent.withAlpha(22),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Image.asset(sport.iconPath, width: 12, height: 12, color: colors.secondary),
+          SportGlyph(sport: sport, size: 12, color: accent),
           const SizedBox(width: 5),
           Text(
             sport.label,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.secondary),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: accent,
+            ),
           ),
         ],
       ),
@@ -517,9 +719,10 @@ class _FacilitiesCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.onSurface.withAlpha(20)),
+        color: TUColors.surface,
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        border: Border.all(color: TUColors.line),
+        boxShadow: TUColors.shSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -529,7 +732,10 @@ class _FacilitiesCard extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: [for (final (icon, label, on) in items) _FacilityChip(icon: icon, label: label, on: on)],
+            children: [
+              for (final (icon, label, on) in items)
+                _FacilityChip(icon: icon, label: label, on: on),
+            ],
           ),
           if (venue.amenities.isNotEmpty) ...[
             const SizedBox(height: 14),
@@ -541,7 +747,10 @@ class _FacilitiesCard extends StatelessWidget {
               children: [
                 for (final a in venue.amenities)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: colors.onSurface.withAlpha(10),
                       borderRadius: BorderRadius.circular(8),
@@ -549,7 +758,11 @@ class _FacilitiesCard extends StatelessWidget {
                     ),
                     child: Text(
                       a,
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: colors.onSurface.withAlpha(170)),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: colors.onSurface.withAlpha(170),
+                      ),
                     ),
                   ),
               ],
@@ -562,7 +775,11 @@ class _FacilitiesCard extends StatelessWidget {
 }
 
 class _FacilityChip extends StatelessWidget {
-  const _FacilityChip({required this.icon, required this.label, required this.on});
+  const _FacilityChip({
+    required this.icon,
+    required this.label,
+    required this.on,
+  });
   final IconData icon;
   final String label;
   final bool on;
@@ -571,14 +788,23 @@ class _FacilityChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final fg = on ? colors.primary : colors.onSurface.withAlpha(110);
-    final bg = on ? colors.primary.withAlpha(20) : colors.onSurface.withAlpha(8);
+    final bg = on
+        ? colors.primary.withAlpha(20)
+        : colors.onSurface.withAlpha(8);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(on ? icon : Icons.do_not_disturb_alt_outlined, size: 14, color: fg),
+          Icon(
+            on ? icon : Icons.do_not_disturb_alt_outlined,
+            size: 14,
+            color: fg,
+          ),
           const SizedBox(width: 6),
           Text(
             label,
@@ -622,9 +848,10 @@ class _OpeningHoursCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.onSurface.withAlpha(20)),
+        color: TUColors.surface,
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+        border: Border.all(color: TUColors.line),
+        boxShadow: TUColors.shSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -641,7 +868,10 @@ class _OpeningHoursCard extends StatelessWidget {
                       width: 56,
                       child: Text(
                         label,
-                        style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700, color: colors.onSurface.withAlpha(140)),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colors.onSurface.withAlpha(140),
+                        ),
                       ),
                     ),
                     Text(
@@ -651,7 +881,9 @@ class _OpeningHoursCard extends StatelessWidget {
                                 '${venue.openingHours[key]!.close}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: venue.openingHours[key]!.closed ? colors.error.withAlpha(180) : colors.onSurface,
+                        color: venue.openingHours[key]!.closed
+                            ? colors.error.withAlpha(180)
+                            : colors.onSurface,
                       ),
                     ),
                   ],
@@ -666,7 +898,13 @@ class _OpeningHoursCard extends StatelessWidget {
 // ─── Pitches header ─────────────────────────────────────────
 
 class _PitchesHeader extends StatelessWidget {
-  const _PitchesHeader({required this.count, required this.query, required this.onQuery, required this.onAdd, required this.isMobile});
+  const _PitchesHeader({
+    required this.count,
+    required this.query,
+    required this.onQuery,
+    required this.onAdd,
+    required this.isMobile,
+  });
 
   final int count;
   final String query;
@@ -680,31 +918,58 @@ class _PitchesHeader extends StatelessWidget {
     final colors = theme.colorScheme;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(isMobile ? 20 : 32, isMobile ? 14 : 28, isMobile ? 20 : 32, 14),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 20 : 32,
+        isMobile ? 14 : 28,
+        isMobile ? 20 : 32,
+        14,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Text('Pitches', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+              Text(
+                'Pitches',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: colors.primary.withAlpha(20), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(
+                  color: colors.primary.withAlpha(20),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Text(
                   '$count',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: colors.primary),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: colors.primary,
+                  ),
                 ),
               ),
               const Spacer(),
               if (isMobile)
-                IconButton.filled(onPressed: onAdd, icon: const Icon(Icons.add_rounded, size: 18), tooltip: 'Add pitch')
+                IconButton.filled(
+                  onPressed: onAdd,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  tooltip: 'Add pitch',
+                )
               else
                 FilledButton.icon(
                   onPressed: onAdd,
                   icon: const Icon(Icons.add_rounded, size: 18),
                   label: const Text('Add pitch'),
-                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10)),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -782,7 +1047,10 @@ class _PitchesPanel extends StatelessWidget {
               if (snap.hasError) {
                 _log.e('Pitches stream error', error: snap.error);
                 return Center(
-                  child: Text(snap.error.toString(), style: TextStyle(color: colors.error)),
+                  child: Text(
+                    snap.error.toString(),
+                    style: TextStyle(color: colors.error),
+                  ),
                 );
               }
               final all = snap.data ?? const <PitchModel>[];
@@ -801,7 +1069,8 @@ class _PitchesPanel extends StatelessWidget {
               for (final p in filtered) {
                 groups.putIfAbsent(p.sport, () => []).add(p);
               }
-              final sortedSports = groups.keys.toList()..sort((a, b) => a.value - b.value);
+              final sortedSports = groups.keys.toList()
+                ..sort((a, b) => a.value - b.value);
 
               return LayoutBuilder(
                 builder: (context, constraints) {
@@ -815,7 +1084,12 @@ class _PitchesPanel extends StatelessWidget {
                       : 3;
                   final tileWidth = (available - (cols - 1) * spacing) / cols;
                   return ListView(
-                    padding: EdgeInsets.fromLTRB(hPad, 0, hPad, isMobile ? 24 : 40),
+                    padding: EdgeInsets.fromLTRB(
+                      hPad,
+                      0,
+                      hPad,
+                      isMobile ? 24 : 40,
+                    ),
                     children: [
                       _FilterChipsRow(
                         stats: stats,
@@ -823,7 +1097,9 @@ class _PitchesPanel extends StatelessWidget {
                         onSelected: onFilter,
                         selectedSports: selectedSports,
                         onSportsChanged: onSportsChanged,
-                        availableSports: venue.sports.isEmpty ? Sport.values : venue.sports,
+                        availableSports: venue.sports.isEmpty
+                            ? Sport.values
+                            : venue.sports,
                       ),
                       SizedBox(height: isMobile ? 14 : 22),
                       if (filtered.isEmpty)
@@ -831,18 +1107,32 @@ class _PitchesPanel extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: 40),
                           child: Center(
                             child: Text(
-                              query.isNotEmpty ? 'No pitches match "$query"' : 'No pitches match this filter',
-                              style: TextStyle(color: colors.onSurface.withAlpha(140)),
+                              query.isNotEmpty
+                                  ? 'No pitches match "$query"'
+                                  : 'No pitches match this filter',
+                              style: TextStyle(
+                                color: colors.onSurface.withAlpha(140),
+                              ),
                             ),
                           ),
                         ),
                       for (final sport in sortedSports) ...[
-                        _SportGroupHeader(sport: sport, count: groups[sport]!.length),
+                        _SportGroupHeader(
+                          sport: sport,
+                          count: groups[sport]!.length,
+                        ),
                         SizedBox(height: isMobile ? 10 : 14),
                         Wrap(
                           spacing: spacing,
                           runSpacing: spacing,
-                          children: [for (final p in groups[sport]!) _PitchTile(pitch: p, venueId: venue.id, width: tileWidth)],
+                          children: [
+                            for (final p in groups[sport]!)
+                              _PitchTile(
+                                pitch: p,
+                                venueId: venue.id,
+                                width: tileWidth,
+                              ),
+                          ],
                         ),
                         SizedBox(height: isMobile ? 22 : 32),
                       ],
@@ -861,7 +1151,12 @@ class _PitchesPanel extends StatelessWidget {
 // ─── Stats row ──────────────────────────────────────────────
 
 class _PitchStats {
-  const _PitchStats({required this.total, required this.active, required this.indoor, required this.lit});
+  const _PitchStats({
+    required this.total,
+    required this.active,
+    required this.indoor,
+    required this.lit,
+  });
   final int total;
   final int active;
   final int indoor;
@@ -905,13 +1200,32 @@ class _FilterChipsRow extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _SportsDropdownPill(available: availableSports, selected: selectedSports, onChanged: onSportsChanged),
+          _SportsDropdownPill(
+            available: availableSports,
+            selected: selectedSports,
+            onChanged: onSportsChanged,
+          ),
           const SizedBox(width: 6),
-          _FilterPill(label: 'Active', count: stats.active, selected: selected == _PitchFilter.active, onTap: () => _toggle(_PitchFilter.active)),
+          _FilterPill(
+            label: 'Active',
+            count: stats.active,
+            selected: selected == _PitchFilter.active,
+            onTap: () => _toggle(_PitchFilter.active),
+          ),
           const SizedBox(width: 6),
-          _FilterPill(label: 'Indoor', count: stats.indoor, selected: selected == _PitchFilter.indoor, onTap: () => _toggle(_PitchFilter.indoor)),
+          _FilterPill(
+            label: 'Indoor',
+            count: stats.indoor,
+            selected: selected == _PitchFilter.indoor,
+            onTap: () => _toggle(_PitchFilter.indoor),
+          ),
           const SizedBox(width: 6),
-          _FilterPill(label: 'Lit', count: stats.lit, selected: selected == _PitchFilter.lit, onTap: () => _toggle(_PitchFilter.lit)),
+          _FilterPill(
+            label: 'Lit',
+            count: stats.lit,
+            selected: selected == _PitchFilter.lit,
+            onTap: () => _toggle(_PitchFilter.lit),
+          ),
         ],
       ),
     );
@@ -919,7 +1233,11 @@ class _FilterChipsRow extends StatelessWidget {
 }
 
 class _SportsDropdownPill extends StatelessWidget {
-  const _SportsDropdownPill({required this.available, required this.selected, required this.onChanged});
+  const _SportsDropdownPill({
+    required this.available,
+    required this.selected,
+    required this.onChanged,
+  });
 
   final List<Sport> available;
   final Set<Sport> selected;
@@ -942,14 +1260,17 @@ class _SportsDropdownPill extends StatelessWidget {
       style: MenuStyle(
         backgroundColor: WidgetStatePropertyAll(colors.surface),
         elevation: const WidgetStatePropertyAll(4),
-        padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 4)),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(vertical: 4),
+        ),
       ),
       builder: (ctx, controller, _) {
         return Material(
           color: isFiltered ? colors.primary : colors.onSurface.withAlpha(10),
           borderRadius: BorderRadius.circular(16),
           child: InkWell(
-            onTap: () => controller.isOpen ? controller.close() : controller.open(),
+            onTap: () =>
+                controller.isOpen ? controller.close() : controller.open(),
             borderRadius: BorderRadius.circular(16),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -960,7 +1281,11 @@ class _SportsDropdownPill extends StatelessWidget {
                   const SizedBox(width: 5),
                   Text(
                     _label(),
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: fg,
+                    ),
                   ),
                   const SizedBox(width: 4),
                   Icon(Icons.arrow_drop_down_rounded, size: 18, color: fg),
@@ -977,7 +1302,11 @@ class _SportsDropdownPill extends StatelessWidget {
             leadingIcon: const Icon(Icons.clear_rounded, size: 16),
             child: const Text('Clear selection'),
           ),
-        if (isFiltered) const Padding(padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4), child: Divider(height: 1)),
+        if (isFiltered)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Divider(height: 1),
+          ),
         for (final s in available)
           CheckboxMenuButton(
             value: selected.contains(s),
@@ -993,7 +1322,12 @@ class _SportsDropdownPill extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(s.iconPath, width: 14, height: 14, color: Theme.of(context).colorScheme.secondary),
+                Image.asset(
+                  s.iconPath,
+                  width: 14,
+                  height: 14,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
                 const SizedBox(width: 8),
                 Text(s.label),
               ],
@@ -1005,7 +1339,12 @@ class _SportsDropdownPill extends StatelessWidget {
 }
 
 class _FilterPill extends StatelessWidget {
-  const _FilterPill({required this.label, required this.count, required this.selected, required this.onTap});
+  const _FilterPill({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
   final int count;
@@ -1029,18 +1368,28 @@ class _FilterPill extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: fg,
+                ),
               ),
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
-                  color: selected ? Colors.white.withAlpha(40) : colors.onSurface.withAlpha(15),
+                  color: selected
+                      ? Colors.white.withAlpha(40)
+                      : colors.onSurface.withAlpha(15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '$count',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: fg),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
                 ),
               ),
             ],
@@ -1063,7 +1412,9 @@ class _SearchField extends StatefulWidget {
 }
 
 class _SearchFieldState extends State<_SearchField> {
-  late final TextEditingController _controller = TextEditingController(text: widget.initial);
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
   Timer? _debounce;
 
   @override
@@ -1099,23 +1450,38 @@ class _SearchFieldState extends State<_SearchField> {
         style: const TextStyle(fontSize: 13),
         decoration: InputDecoration(
           hintText: 'Search pitches…',
-          hintStyle: TextStyle(fontSize: 13, color: colors.onSurface.withAlpha(110)),
+          hintStyle: TextStyle(
+            fontSize: 13,
+            color: colors.onSurface.withAlpha(110),
+          ),
           prefixIcon: const Icon(Icons.search_rounded, size: 16),
-          prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 32,
+            minHeight: 32,
+          ),
           suffixIcon: _controller.text.isEmpty
               ? null
               : IconButton(
                   splashRadius: 16,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                   icon: const Icon(Icons.close_rounded, size: 16),
                   onPressed: _clear,
                 ),
           isDense: true,
           filled: true,
           fillColor: colors.onSurface.withAlpha(8),
-          contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 6,
+            horizontal: 8,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
         ),
       ),
     );
@@ -1132,7 +1498,7 @@ class _SportGroupHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final accent = sport.color;
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 6),
       child: Row(
@@ -1141,20 +1507,35 @@ class _SportGroupHeader extends StatelessWidget {
           Container(
             width: 32,
             height: 32,
-            decoration: BoxDecoration(color: colors.secondary.withAlpha(22), shape: BoxShape.circle),
-            child: Center(child: Image.asset(sport.iconPath, width: 16, height: 16, color: colors.secondary)),
+            decoration: BoxDecoration(
+              color: accent.withAlpha(22),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: SportGlyph(sport: sport, size: 16, color: accent),
+            ),
           ),
           const SizedBox(width: 12),
-          Text(sport.label, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.2)),
+          Text(
+            sport.label,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+              color: TUColors.ink,
+            ),
+          ),
           const SizedBox(width: 8),
           Text(
             '· $count',
-            style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface.withAlpha(120), fontWeight: FontWeight.w700),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: TUColors.ink3,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(width: 14),
           // Trailing rule that extends to fill — gives the section a
           // clear top boundary across the panel width.
-          Expanded(child: Container(height: 1, color: colors.onSurface.withAlpha(20))),
+          Expanded(child: Container(height: 1, color: TUColors.line)),
         ],
       ),
     );
@@ -1164,7 +1545,11 @@ class _SportGroupHeader extends StatelessWidget {
 // ─── Pitch tile ─────────────────────────────────────────────
 
 class _PitchTile extends StatelessWidget {
-  const _PitchTile({required this.pitch, required this.venueId, this.width = 280});
+  const _PitchTile({
+    required this.pitch,
+    required this.venueId,
+    this.width = 280,
+  });
   final PitchModel pitch;
   final String venueId;
   final double width;
@@ -1172,185 +1557,188 @@ class _PitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final priceAmount = (pitch.pricePerHour / 100).toStringAsFixed(0);
-    final cover = pitch.imageUrls.isNotEmpty ? pitch.imageUrls.first : null;
-    final photoCount = pitch.imageUrls.length;
     final dimmed = !pitch.active;
+    const radius = BorderRadius.all(Radius.circular(TUColors.rMd));
 
     return SizedBox(
       width: width,
-      child: Card(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: colors.onSurface.withAlpha(20)),
-        ),
-        child: Opacity(
-          opacity: dimmed ? 0.62 : 1,
-          child: InkWell(
-            onTap: () => AddEditPitchDialog.show(context, venueId: venueId, pitch: pitch),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ── Image header with overlays ──
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (cover != null)
-                        Image.network(cover, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _imageFallback(colors))
-                      else
-                        _imageFallback(colors),
-                      // Overall darkening so photos read as backdrops, not
-                      // visual noise. Combined with a stronger bottom
-                      // gradient so the status pill always pops.
-                      if (cover != null)
-                        Positioned.fill(
-                          child: DecoratedBox(decoration: BoxDecoration(color: Colors.black.withAlpha(60))),
-                        ),
+      child: Opacity(
+        opacity: dimmed ? 0.62 : 1,
+        child: Container(
+          decoration: BoxDecoration(
+            color: TUColors.surface,
+            borderRadius: radius,
+            border: Border.all(color: TUColors.line),
+            boxShadow: TUColors.shSm,
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              borderRadius: radius,
+              onTap: () => AddEditPitchDialog.show(
+                context,
+                venueId: venueId,
+                pitch: pitch,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Illustrated, photo-free header ──
+                  SportTile(
+                    sport: pitch.sport,
+                    height: 118,
+                    glyphSize: 46,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(TUColors.rMd),
+                    ),
+                    overlay: [
                       Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        height: 80,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                              colors: [Colors.black.withAlpha(150), Colors.transparent],
-                            ),
-                          ),
+                        top: 10,
+                        left: 10,
+                        child: TilePill(
+                          icon: pitch.indoor
+                              ? Icons.roofing_rounded
+                              : Icons.wb_sunny_outlined,
+                          label: pitch.indoor ? 'Indoor' : 'Outdoor',
                         ),
                       ),
-                      // Status pill (top-right)
-                      Positioned(top: 10, right: 10, child: _StatusDot(active: pitch.active)),
-                      // Photo count (bottom-left)
-                      if (photoCount > 1)
-                        Positioned(
-                          left: 10,
-                          bottom: 10,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(color: Colors.black.withAlpha(140), borderRadius: BorderRadius.circular(6)),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.photo_library_outlined, size: 11, color: Colors.white),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$photoCount',
-                                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: _StatusDot(active: pitch.active),
+                      ),
                     ],
                   ),
-                ),
 
-                // ── Body ──
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Name + edit affordance
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              pitch.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(color: colors.onSurface.withAlpha(10), shape: BoxShape.circle),
-                            child: Icon(Icons.edit_outlined, size: 14, color: colors.onSurface.withAlpha(150)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Image.asset(pitch.sport.iconPath, width: 13, height: 13, color: colors.secondary),
-                          const SizedBox(width: 5),
-                          Text(
-                            pitch.sport.label,
-                            style: theme.textTheme.bodySmall?.copyWith(color: colors.secondary, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(width: 10),
-                          Icon(Icons.group_outlined, size: 13, color: colors.onSurface.withAlpha(140)),
-                          const SizedBox(width: 3),
-                          Text(
-                            '${pitch.maxPlayers}',
-                            style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurface.withAlpha(160), fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          _Mini(icon: pitch.indoor ? Icons.roofing_rounded : Icons.wb_sunny_outlined, label: pitch.indoor ? 'Indoor' : 'Outdoor'),
-                          _Mini(icon: Icons.lightbulb_outline, label: pitch.isIlluminated ? 'Lit' : 'No lights', muted: !pitch.isIlluminated),
-                          if (pitch.surface != null) _Mini(icon: Icons.grass_outlined, label: pitch.surface!),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: colors.primary.withAlpha(15), borderRadius: BorderRadius.circular(8)),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
+                  // ── Body ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Name + edit affordance
+                        Row(
                           children: [
-                            Text(
-                              priceAmount,
-                              style: theme.textTheme.titleMedium?.copyWith(color: colors.primary, fontWeight: FontWeight.w800),
+                            Expanded(
+                              child: Text(
+                                pitch.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: TUColors.ink,
+                                ),
+                              ),
                             ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${pitch.currency}/h',
-                              style: theme.textTheme.bodySmall?.copyWith(color: colors.primary.withAlpha(180), fontWeight: FontWeight.w600),
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: const BoxDecoration(
+                                color: TUColors.surface2,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.edit_outlined,
+                                size: 14,
+                                color: TUColors.ink3,
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            SportGlyph(
+                              sport: pitch.sport,
+                              size: 13,
+                              color: pitch.sport.color,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              pitch.sport.label,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: pitch.sport.color,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(
+                              Icons.group_outlined,
+                              size: 13,
+                              color: TUColors.ink3,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${pitch.maxPlayers}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: TUColors.ink2,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _Mini(
+                              icon: Icons.lightbulb_outline,
+                              label: pitch.isIlluminated ? 'Lit' : 'No lights',
+                              muted: !pitch.isIlluminated,
+                            ),
+                            if (pitch.surface != null)
+                              _Mini(
+                                icon: Icons.grass_outlined,
+                                label: pitch.surface!,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: TUColors.brandTint,
+                            borderRadius: BorderRadius.circular(TUColors.rSm),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(
+                                priceAmount,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: TUColors.brand700,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${pitch.currency}/h',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: TUColors.brand700.withAlpha(180),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _imageFallback(ColorScheme colors) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.secondary.withAlpha(40), colors.primary.withAlpha(40)],
-        ),
-      ),
-      child: Center(child: Image.asset(pitch.sport.iconPath, width: 44, height: 44, color: Colors.white.withAlpha(200))),
     );
   }
 }
@@ -1364,13 +1752,21 @@ class _StatusDot extends StatelessWidget {
     // White pill with a colored indicator dot and colored text. White
     // background guarantees legibility on any photo; the colored dot +
     // text carry the meaning without shouting like a solid green chip.
-    final accent = active ? const Color(0xFF1E7E3F) : Theme.of(context).colorScheme.error;
+    final accent = active
+        ? const Color(0xFF1E7E3F)
+        : Theme.of(context).colorScheme.error;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(45), blurRadius: 6, offset: const Offset(0, 1))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(45),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1383,7 +1779,12 @@ class _StatusDot extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             active ? 'Active' : 'Inactive',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: accent, letterSpacing: 0.3),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: accent,
+              letterSpacing: 0.3,
+            ),
           ),
         ],
       ),
@@ -1399,11 +1800,13 @@ class _Mini extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final fg = muted ? colors.onSurface.withAlpha(110) : colors.onSurface.withAlpha(170);
+    final fg = muted ? TUColors.ink3 : TUColors.ink2;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(color: colors.onSurface.withAlpha(10), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(
+        color: TUColors.surface2,
+        borderRadius: BorderRadius.circular(6),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1411,7 +1814,11 @@ class _Mini extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
           ),
         ],
       ),
@@ -1438,20 +1845,35 @@ class _EmptyPitches extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: BoxDecoration(color: colors.secondary.withAlpha(15), shape: BoxShape.circle),
-              child: Icon(Icons.sports_soccer_outlined, size: 32, color: colors.secondary.withAlpha(140)),
+              decoration: BoxDecoration(
+                color: colors.secondary.withAlpha(15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.sports_soccer_outlined,
+                size: 32,
+                color: colors.secondary.withAlpha(140),
+              ),
             ),
             const SizedBox(height: 18),
-            Text('No pitches yet', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'No pitches yet',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 6),
             Text(
               'Add your first pitch to start receiving bookings.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface.withAlpha(150)),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurface.withAlpha(150),
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () => AddEditPitchDialog.show(context, venueId: venueId),
+              onPressed: () =>
+                  AddEditPitchDialog.show(context, venueId: venueId),
               icon: const Icon(Icons.add_rounded),
               label: const Text('Add pitch'),
             ),

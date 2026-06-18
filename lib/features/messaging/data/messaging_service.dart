@@ -19,6 +19,16 @@ class MessagingService {
     return _convRef.doc(conversationId).snapshots().map((doc) => doc.exists ? ConversationModel.fromFirestore(doc) : null);
   }
 
+  /// Stream the conversations a user is part of, most-recent first. Sorted
+  /// client-side so the `arrayContains` query needs no composite index.
+  Stream<List<ConversationModel>> streamUserConversations(String userId) {
+    return _convRef.where('participantIds', arrayContains: userId).snapshots().map((snap) {
+      final list = snap.docs.map(ConversationModel.fromFirestore).toList();
+      list.sort((a, b) => (b.lastMessageAt ?? b.createdAt).compareTo(a.lastMessageAt ?? a.createdAt));
+      return list;
+    });
+  }
+
   /// Stream messages oldest → newest for chronological rendering. The
   /// `arrayContains` filter is required so Firestore security rules can
   /// statically prove the query stays within docs the user is allowed to
@@ -37,6 +47,7 @@ class MessagingService {
     required String senderId,
     required List<String> participantIds,
     required String text,
+    String? title,
   }) async {
     final convId = bookingConversationId(bookingId);
     final convRef = _convRef.doc(convId);
@@ -45,31 +56,30 @@ class MessagingService {
 
     final message = MessageModel(id: msgRef.id, senderId: senderId, text: text, participantIds: participantIds, sentAt: now);
 
-    await _firestore.runTransaction((txn) async {
-      final convSnap = await txn.get(convRef);
-      if (!convSnap.exists) {
-        final conversation = ConversationModel(
-          id: convId,
-          kind: ConversationKind.booking,
-          bookingId: bookingId,
-          participantIds: participantIds,
-          lastMessageText: text,
-          lastMessageSenderId: senderId,
-          lastMessageAt: now,
-          createdAt: now,
-        );
-        txn.set(convRef, conversation.toJson());
-      } else {
-        txn.update(convRef, {
-          'lastMessageText': text,
-          'lastMessageSenderId': senderId,
-          'lastMessageAt': Timestamp.fromDate(now),
-          // Keep participants in sync if they expand later (e.g. game joins).
-          'participantIds': participantIds,
-        });
-      }
-      txn.set(msgRef, message.toJson());
-    });
+    // Write the message first — this is what the chat actually reads, and the
+    // rules allow it as long as the sender lists themselves in participantIds.
+    // We deliberately do NOT read the conversation: a freshly-joined player
+    // isn't in the stored participantIds yet, so a transactional get() would be
+    // permission-denied even though they're a legitimate member.
+    await msgRef.set(message.toJson());
+
+    // The conversation doc is just inbox metadata (last-message preview). Upsert
+    // it best-effort with arrayUnion so new members are added without clobbering
+    // others; never block the send if this write is rejected.
+    try {
+      await convRef.set({
+        'kind': ConversationKind.booking.name,
+        'bookingId': bookingId,
+        if (title != null) 'title': title,
+        'participantIds': FieldValue.arrayUnion(participantIds),
+        'lastMessageText': text,
+        'lastMessageSenderId': senderId,
+        'lastMessageAt': Timestamp.fromDate(now),
+        'createdAt': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Metadata only — the message is already delivered.
+    }
 
     return (conversationId: convId, message: message);
   }

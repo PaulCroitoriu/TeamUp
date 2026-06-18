@@ -9,19 +9,23 @@ class NotificationService {
 
   CollectionReference<Map<String, dynamic>> get _ref => _firestore.collection('notifications');
 
-  /// Stream a user's notifications, newest first.
+  /// Stream a user's notifications, newest first. Sorted/limited client-side so
+  /// a single-field query suffices (no composite index needed).
   Stream<List<NotificationModel>> streamForUser(String userId) {
-    return _ref
-        .where('recipientId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .limit(50)
-        .snapshots()
-        .map((snap) => snap.docs.map(NotificationModel.fromFirestore).toList());
+    return _ref.where('recipientId', isEqualTo: userId).snapshots().map((snap) {
+      final list = snap.docs.map(NotificationModel.fromFirestore).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list.take(50).toList();
+    });
   }
 
-  /// Stream the unread count for the bell badge.
+  /// Stream the unread count for the bell badge. Filtered client-side to avoid a
+  /// composite index.
   Stream<int> streamUnreadCount(String userId) {
-    return _ref.where('recipientId', isEqualTo: userId).where('read', isEqualTo: false).snapshots().map((snap) => snap.size);
+    return _ref
+        .where('recipientId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) => snap.docs.map(NotificationModel.fromFirestore).where((n) => !n.read).length);
   }
 
   Future<NotificationModel> create(NotificationModel notification) async {
@@ -36,10 +40,11 @@ class NotificationService {
   }
 
   Future<void> markAllRead(String userId) async {
-    final unread = await _ref.where('recipientId', isEqualTo: userId).where('read', isEqualTo: false).get();
-    if (unread.docs.isEmpty) return;
+    final snap = await _ref.where('recipientId', isEqualTo: userId).get();
+    final unread = snap.docs.where((d) => d.data()['read'] != true).toList();
+    if (unread.isEmpty) return;
     final batch = _firestore.batch();
-    for (final doc in unread.docs) {
+    for (final doc in unread) {
       batch.update(doc.reference, {'read': true});
     }
     await batch.commit();

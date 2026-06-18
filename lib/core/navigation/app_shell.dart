@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:teamup/core/theme/design_tokens.dart';
+import 'package:teamup/core/enums/notification_type.dart';
 import 'package:teamup/features/auth/models/user_model.dart';
+import 'package:teamup/features/notifications/data/notification_service.dart';
 import 'package:teamup/features/notifications/data/push_service.dart';
+import 'package:teamup/features/notifications/models/notification_model.dart';
 import 'package:teamup/features/notifications/widgets/notification_toast_listener.dart';
 import 'package:teamup/features/games/screens/explore_screen.dart';
 import 'package:teamup/features/games/screens/my_games_screen.dart';
@@ -25,7 +29,26 @@ class _AppShellState extends State<AppShell> {
   bool _sidebarExpanded = true;
   final _pushService = PushService();
 
+  // On desktop each tab keeps its own navigator so detail pages open *inside*
+  // the content pane and the sidebar stays visible. Tabs are built lazily and
+  // kept alive once visited, preserving their navigation stack across switches.
+  final List<GlobalKey<NavigatorState>> _navKeys =
+      List.generate(4, (_) => GlobalKey<NavigatorState>());
+  final Set<int> _built = {0};
+
   bool get _isBusiness => widget.user.role == UserRole.business;
+
+  /// Switch tabs; re-tapping the active tab pops its stack back to the root.
+  void _select(int i) {
+    if (i == _index) {
+      _navKeys[i].currentState?.popUntil((r) => r.isFirst);
+      return;
+    }
+    setState(() {
+      _index = i;
+      _built.add(i);
+    });
+  }
 
   @override
   void initState() {
@@ -57,7 +80,7 @@ class _AppShellState extends State<AppShell> {
       : const [
           _Destination(Icons.explore_outlined, Icons.explore_rounded, 'Explore'),
           _Destination(Icons.sports_soccer_outlined, Icons.sports_soccer_rounded, 'My Games'),
-          _Destination(Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Messages'),
+          _Destination(Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Messages', isMessages: true),
           _Destination(Icons.settings_outlined, Icons.settings_rounded, 'Settings'),
         ];
 
@@ -77,6 +100,7 @@ class _AppShellState extends State<AppShell> {
 
   Widget _buildShell(BuildContext context, bool isWide, ColorScheme colors, List<_Destination> destinations) {
     if (isWide) {
+      final screens = _screens;
       return Scaffold(
         body: Row(
           children: [
@@ -84,11 +108,22 @@ class _AppShellState extends State<AppShell> {
               expanded: _sidebarExpanded,
               selectedIndex: _index,
               destinations: destinations,
-              onSelected: (i) => setState(() => _index = i),
+              userId: widget.user.uid,
+              onSelected: _select,
               onToggle: () => setState(() => _sidebarExpanded = !_sidebarExpanded),
             ),
-            VerticalDivider(width: 1, thickness: 1, color: colors.onSurface.withAlpha(20)),
-            Expanded(child: _screens[_index]),
+            Expanded(
+              child: IndexedStack(
+                index: _index,
+                children: [
+                  for (var i = 0; i < destinations.length; i++)
+                    if (_built.contains(i))
+                      _TabNavigator(navigatorKey: _navKeys[i], child: screens[i])
+                    else
+                      const SizedBox.shrink(),
+                ],
+              ),
+            ),
           ],
         ),
       );
@@ -106,8 +141,12 @@ class _AppShellState extends State<AppShell> {
         destinations: [
           for (final d in destinations)
             NavigationDestination(
-              icon: Icon(d.icon),
-              selectedIcon: Icon(d.selectedIcon, color: colors.primary),
+              icon: d.isMessages
+                  ? _UnreadMessagesDot(userId: widget.user.uid, child: Icon(d.icon))
+                  : Icon(d.icon),
+              selectedIcon: d.isMessages
+                  ? _UnreadMessagesDot(userId: widget.user.uid, child: Icon(d.selectedIcon, color: colors.primary))
+                  : Icon(d.selectedIcon, color: colors.primary),
               label: d.label,
             ),
         ],
@@ -116,78 +155,158 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
+/// A per-tab nested navigator (desktop). Its root route renders the tab screen;
+/// detail pages pushed from within stay inside the content pane, leaving the
+/// sidebar in place.
+class _TabNavigator extends StatelessWidget {
+  const _TabNavigator({required this.navigatorKey, required this.child});
+  final GlobalKey<NavigatorState> navigatorKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Navigator(
+      key: navigatorKey,
+      onGenerateRoute: (settings) => MaterialPageRoute(
+        settings: settings,
+        builder: (_) => child,
+      ),
+    );
+  }
+}
+
 class _Destination {
-  const _Destination(this.icon, this.selectedIcon, this.label);
+  const _Destination(this.icon, this.selectedIcon, this.label, {this.isMessages = false});
   final IconData icon;
   final IconData selectedIcon;
   final String label;
+  final bool isMessages;
 }
 
+/// Overlays a small red dot on [child] when the user has unread chat messages,
+/// used to badge the Messages nav item.
+class _UnreadMessagesDot extends StatelessWidget {
+  const _UnreadMessagesDot({required this.userId, required this.child});
+  final String userId;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<NotificationModel>>(
+      stream: NotificationService().streamForUser(userId),
+      builder: (context, snap) {
+        final unread = (snap.data ?? const <NotificationModel>[])
+            .any((n) => !n.read && n.type == NotificationType.newMessage);
+        if (!unread) return child;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            child,
+            Positioned(
+              top: -3,
+              right: -4,
+              child: Container(
+                width: 11,
+                height: 11,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5484D),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Dark pitch-green gradient sidebar from the TeamUp redesign — brand logo
+/// tile, lime-accented selection with a left accent bar, and a Collapse row.
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({required this.expanded, required this.selectedIndex, required this.destinations, required this.onSelected, required this.onToggle});
+  const _Sidebar({required this.expanded, required this.selectedIndex, required this.destinations, required this.userId, required this.onSelected, required this.onToggle});
 
   final bool expanded;
   final int selectedIndex;
   final List<_Destination> destinations;
+  final String userId;
   final ValueChanged<int> onSelected;
   final VoidCallback onToggle;
 
-  static const _collapsedWidth = 72.0;
-  static const _expandedWidth = 240.0;
+  static const _collapsedWidth = 80.0;
+  static const _expandedWidth = 248.0;
+  static const _sideEnd = Color(0xFF0A2A18);
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
     return ClipRect(
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
         width: expanded ? _expandedWidth : _collapsedWidth,
-        color: colors.surface,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment(-0.1, -1),
+            end: Alignment(0.1, 1),
+            colors: [TUColors.brand900, _sideEnd],
+            stops: [0, 0.9],
+          ),
+        ),
         child: OverflowBox(
           alignment: Alignment.topLeft,
           minWidth: _expandedWidth,
           maxWidth: _expandedWidth,
           child: SizedBox(
             width: _expandedWidth,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── Brand ──
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-                  child: Row(
-                    children: [
-                      Icon(Icons.sports_soccer_rounded, color: colors.primary, size: 28),
-                      if (expanded) ...[
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'TeamUp',
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: colors.onSurface, fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3),
-                          ),
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── Brand ──
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: expanded
+                            // Full lockup (mark + wordmark) tuned for dark backgrounds.
+                            ? Image.asset('assets/logo/teamup-lockup-dark.png', height: 52, fit: BoxFit.contain)
+                            // Collapsed rail — mark only.
+                            : Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(11),
+                                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 16, offset: const Offset(0, 6))],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(11),
+                                  child: Image.asset('assets/logo/teamup-mark.png', width: 38, height: 38, fit: BoxFit.cover),
+                                ),
+                              ),
+                      ),
+                    ),
+                    // ── Destinations ──
+                    Expanded(
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: destinations.length,
+                        itemBuilder: (_, i) => _SidebarItem(
+                          destination: destinations[i],
+                          selected: selectedIndex == i,
+                          expanded: expanded,
+                          userId: userId,
+                          onTap: () => onSelected(i),
                         ),
-                      ],
-                    ],
-                  ),
+                      ),
+                    ),
+                    // ── Collapse toggle ──
+                    _SidebarToggle(expanded: expanded, onTap: onToggle),
+                  ],
                 ),
-                // ── Destinations ──
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: destinations.length,
-                    itemBuilder: (_, i) =>
-                        _SidebarItem(destination: destinations[i], selected: selectedIndex == i, expanded: expanded, onTap: () => onSelected(i)),
-                  ),
-                ),
-                // ── Collapse toggle ──
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-                  child: _SidebarToggle(expanded: expanded, onTap: onToggle),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -197,31 +316,42 @@ class _Sidebar extends StatelessWidget {
 }
 
 class _SidebarItem extends StatelessWidget {
-  const _SidebarItem({required this.destination, required this.selected, required this.expanded, required this.onTap});
+  const _SidebarItem({required this.destination, required this.selected, required this.expanded, required this.userId, required this.onTap});
 
   final _Destination destination;
   final bool selected;
   final bool expanded;
+  final String userId;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final iconColor = selected ? colors.primary : colors.onSurfaceVariant;
-    final labelColor = selected ? colors.primary : colors.onSurface;
+    final fg = selected ? Colors.white : Colors.white.withValues(alpha: .66);
 
-    final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    // The highlight pill is inset from the sidebar's left edge, leaving a gutter
+    // for the lime accent bar, which sits flush against the screen edge.
+    final pill = Container(
+      margin: const EdgeInsets.only(left: 14, right: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: selected ? TUColors.lime.withValues(alpha: .14) : Colors.transparent,
+        borderRadius: BorderRadius.circular(TUColors.rMd),
+      ),
       child: Row(
         children: [
-          Icon(selected ? destination.selectedIcon : destination.icon, color: iconColor, size: 22),
+          destination.isMessages
+              ? _UnreadMessagesDot(
+                  userId: userId,
+                  child: Icon(selected ? destination.selectedIcon : destination.icon, color: fg, size: 21),
+                )
+              : Icon(selected ? destination.selectedIcon : destination.icon, color: fg, size: 21),
           if (expanded) ...[
-            const SizedBox(width: 14),
+            const SizedBox(width: 13),
             Expanded(
               child: Text(
                 destination.label,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: labelColor, fontSize: 14, fontWeight: selected ? FontWeight.w600 : FontWeight.w500),
+                style: TextStyle(color: fg, fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -230,14 +360,34 @@ class _SidebarItem extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: selected ? colors.primary.withAlpha(26) : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
+        color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
-          child: Tooltip(message: expanded ? '' : destination.label, child: content),
+          hoverColor: Colors.white.withValues(alpha: .06),
+          child: Tooltip(
+            message: expanded ? '' : destination.label,
+            child: Stack(
+              children: [
+                pill,
+                // lime accent bar flush against the sidebar's left (screen) edge
+                if (selected)
+                  Positioned(
+                    left: 0,
+                    top: 12,
+                    bottom: 12,
+                    child: Container(
+                      width: 4,
+                      decoration: const BoxDecoration(
+                        color: TUColors.lime,
+                        borderRadius: BorderRadius.only(topRight: Radius.circular(4), bottomRight: Radius.circular(4)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -252,31 +402,27 @@ class _SidebarToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(6),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Icon(
-                expanded ? Icons.keyboard_double_arrow_left_rounded : Icons.keyboard_double_arrow_right_rounded,
-                color: colors.onSurfaceVariant,
-                size: 20,
-              ),
-              if (expanded) ...[
-                const SizedBox(width: 14),
-                Text(
-                  'Collapse',
-                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500),
-                ),
+    final fg = Colors.white.withValues(alpha: .5);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 10, 12, 12),
+      decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0x1AFFFFFF)))),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(TUColors.rMd),
+          hoverColor: Colors.white.withValues(alpha: .06),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Icon(expanded ? Icons.keyboard_arrow_left_rounded : Icons.keyboard_arrow_right_rounded, color: fg, size: 20),
+                if (expanded) ...[
+                  const SizedBox(width: 10),
+                  Text('Collapse', style: TextStyle(color: fg, fontSize: 14, fontWeight: FontWeight.w600)),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
